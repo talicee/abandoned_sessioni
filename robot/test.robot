@@ -2,6 +2,7 @@
 Library    SeleniumLibrary
 Library    OperatingSystem
 Library    Process
+Library    ${CURDIR}${/}..${/}scripts${/}time_range.py
 
 *** Variables ***
 ${URL}             https://e.samator.com/one/monitoring/grafana/d/bf5ymm8nzu134b/4-one-service-log?var-env=prod
@@ -9,12 +10,14 @@ ${BROWSER}         chrome
 ${USERNAME}        admin
 ${PASSWORD}        %{GRAFANA_PASSWORD}
 ${TIMEOUT}         30s
+${FROM_TIME}       ${EMPTY}
+${TO_TIME}         ${EMPTY}
 
 *** Test Cases ***
 Set Grafana Time Range
     [Documentation]    Log in to Grafana, open the time picker, and apply the requested absolute range.
-    ${cutoff}=    Evaluate    datetime.datetime.now(zoneinfo.ZoneInfo('Asia/Jakarta')).replace(hour=16, minute=0, second=0, microsecond=0)    modules=datetime,zoneinfo
-    ${FROM_TIME}=    Evaluate    ($cutoff - datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')    modules=datetime
+    ${start}    ${cutoff}=    Resolve Time Range    ${FROM_TIME}    ${TO_TIME}
+    ${FROM_TIME}=    Evaluate    $start.strftime('%Y-%m-%d %H:%M:%S')
     ${TO_TIME}=    Evaluate    $cutoff.strftime('%Y-%m-%d %H:%M:%S')
     ${chrome_options}=    Evaluate    __import__('selenium').webdriver.ChromeOptions()
     ${download_directory}=    Normalize Path    ${CURDIR}${/}..${/}data${/}downloads
@@ -51,7 +54,7 @@ Set Grafana Time Range
     Wait Until Element Is Enabled    css:button[data-testid="data-testid TimePicker submit button"]    timeout=${TIMEOUT}
     Click Element    css:button[data-testid="data-testid TimePicker submit button"]
     Wait Until Page Contains    ${FROM_TIME}    timeout=${TIMEOUT}
-    ${expected_from}=    Evaluate    str(int(($cutoff - datetime.timedelta(days=1)).timestamp() * 1000))    modules=datetime
+    ${expected_from}=    Evaluate    str(int($start.timestamp() * 1000))
     ${expected_to}=    Evaluate    str(int($cutoff.timestamp() * 1000))
     Wait Until Keyword Succeeds    10s    500ms    Grafana Range Should Match    ${expected_from}    ${expected_to}
     # Hover over the Console Log panel header to reveal its controls.

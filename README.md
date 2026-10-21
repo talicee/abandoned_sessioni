@@ -25,7 +25,7 @@ Run after 16:00 WIB to collect a complete daily period:
 bash scripts/run-workflow.sh
 ```
 
-The runner stops if any step fails. Selenium selects yesterday
+The runner stops if any step fails. By default, Selenium selects yesterday
 16:00 through today 16:00 in Grafana, waits for the CSV download, and runs
 `scripts/join.py` on that specific download. `data/processed/merged.csv` is replaced
 on each run; older downloads are not combined. Running before 16:00 still
@@ -56,6 +56,67 @@ timeout. On this Mac, the verified Microsoft driver is installed locally
 under `.odbc-driver/`; the connection setup automatically uses its ODBC
 configuration when present. This folder is ignored by Git. Other machines
 need their own SQL Server ODBC driver installation matching `DB_DRIVER`.
+
+## Contoh penggunaan tanggal dan jam
+
+Jalankan dari folder utama proyek. Semua tanggal dan jam menggunakan **WIB
+(Asia/Jakarta)**. Ini adalah perintah manual; script tidak menjadwalkan
+proses harian dengan sendirinya.
+
+### 1. Default harian (tanpa parameter)
+
+```sh
+bash scripts/run-workflow.sh
+```
+
+Rentang otomatis: **kemarin 16:00:00 sampai hari ini 16:00:00**.
+Contoh: dijalankan tanggal 21 Oktober 2026 pukul 17.00, data yang diminta
+adalah 20 Oktober 2026 pukul 16.00 sampai 21 Oktober 2026 pukul 16.00.
+Jika dijalankan sebelum pukul 16.00, batas akhirnya tetap hari ini pukul
+16.00; data hari ini belum lengkap.
+
+### 2. Tanggal dan jam khusus
+
+```sh
+bash scripts/run-workflow.sh \
+  --from "2026-10-18 08:30:00" \
+  --to "2026-10-20 17:45:30"
+```
+
+Mengambil data mulai **18 Oktober 2026 pukul 08.30.00** sampai
+**20 Oktober 2026 pukul 17.45.30 WIB**. Rentang boleh berbeda dari 24 jam.
+SQL Server menggunakan tanggal dan jam yang sama persis dari Grafana.
+
+- Isi **kedua** parameter `--from` dan `--to`.
+- Gunakan format **`YYYY-MM-DD HH:MM:SS`**, termasuk detik.
+- Gunakan tanda kutip karena nilai berisi spasi.
+- `--from` harus lebih awal daripada `--to`.
+- Parameter hanya berlaku untuk perintah itu. Tanpa parameter pada
+  pemanggilan berikutnya, rentang kembali ke default harian.
+- Rentang tidak valid menghentikan proses sebelum browser atau query SQL dijalankan.
+
+### 3. Tanpa jendela Chrome
+
+```sh
+bash scripts/run-workflow.sh \
+  --from "2026-10-20 16:00:00" \
+  --to "2026-10-21 16:00:00" \
+  --variable BROWSER:headlesschrome
+```
+
+### 4. Hanya download dan proses CSV (tanpa SQL/matching)
+
+```sh
+bash robot/run-test.sh \
+  --from "2026-10-20 09:00:00" \
+  --to "2026-10-20 12:00:00"
+```
+
+Perintah workflow lengkap menjalankan download → pemrosesan CSV terbaru →
+SQL Server → pencocokan session. File `data/processed/merged.csv` dan
+`data/processed/time_range.json` diganti sesuai rentang terbaru, bukan
+ditambahkan ke hasil hari sebelumnya. SQL yang dijalankan terpisah akan
+membaca rentang tersimpan itu, bukan parameter atau tanggal hari berjalan.
 
 ## Output files
 

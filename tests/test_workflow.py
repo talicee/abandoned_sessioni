@@ -7,15 +7,33 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 import match_sessions
 import sql_server
+from time_range import resolve_time_range
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_default_range_stays_at_16_wib_before_and_after_cutoff(self):
+        for hour in (10, 18):
+            start, end = resolve_time_range(now=datetime(2028, 3, 1, hour, tzinfo=ZoneInfo("Asia/Jakarta")))
+            self.assertEqual(start.isoformat(), "2028-02-29T16:00:00+07:00")
+            self.assertEqual(end.isoformat(), "2028-03-01T16:00:00+07:00")
+
+    def test_custom_range_preserves_dates_and_hours(self):
+        start, end = resolve_time_range("2026-10-18 08:30:00", "2026-10-20 17:45:30")
+        self.assertEqual(start.isoformat(), "2026-10-18T08:30:00+07:00")
+        self.assertEqual(end.isoformat(), "2026-10-20T17:45:30+07:00")
+
+    def test_invalid_custom_range_is_rejected(self):
+        for start, end in [("2026-10-20 16:00:00", ""), ("", "2026-10-21 16:00:00"), ("2026-02-30 16:00:00", "2026-03-01 16:00:00"), ("2026-10-21 16:00:00", "2026-10-20 16:00:00"), ("2026-10-21 16:00:00", "2026-10-21 16:00:00")]:
+            with self.subTest(start=start, end=end), self.assertRaises(ValueError):
+                resolve_time_range(start, end)
+
     def test_only_latest_download_is_processed_and_output_is_replaced(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
