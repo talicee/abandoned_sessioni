@@ -267,10 +267,17 @@ bisa dibaca saat runner masih berlangsung.
 Hari gagal (termasuk CSV Grafana kosong) ditandai `failed` dan tidak masuk
 rekap ID berhasil. Runner tetap mencoba hari berikutnya dan memberi exit
 code gagal jika ada hari yang belum berhasil. Log tiap hari tersedia untuk
-penelusuran. Jalankan perintah yang sama untuk melanjutkan: hari berstatus
+penelusuran. Laporan Robot yang baru dibuat ikut disalin ke folder tanggal itu. Jalankan perintah yang sama untuk melanjutkan: hari berstatus
 `success` dilewati, sementara hari gagal dicoba kembali. Hasil sukses
 merupakan snapshot saat dijalankan; untuk memperbarui satu hari yang sudah
 sukses, hapus folder tanggal itu sebelum menjalankan ulang.
+
+Status `verified_empty` hanya digunakan setelah verifikasi independen SQL
+untuk hari dengan Grafana kosong, bukan diterapkan otomatis pada semua CSV
+kosong. Pada 18 Oktober 2026, seluruh 55 session SQL diperiksa dan tidak
+ada pesan customer ke API yang belum dibalas; bukti ada di
+`data/daily/2026-10-18/empty_verification.json`. Status ini juga dapat
+dipakai kembali saat melanjutkan run.
 
 Tanpa parameter, tanggal awal adalah 23 September 2026 dan tanggal akhir
 adalah hari ini di WIB. Data tanggal hari ini hanya berisi pesan yang

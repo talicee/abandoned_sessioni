@@ -30,11 +30,12 @@ class DailyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp) / "2026-09-23"
             folder.mkdir()
-            record = {"date": "2026-09-23", "status": "success", "session_ids": "001"}
-            (folder / "status.json").write_text(json.dumps(record))
-            with patch.object(daily, "DAILY", Path(tmp)), patch.object(daily.subprocess, "Popen") as process:
-                self.assertEqual(daily.run_day(date(2026, 9, 23)), record)
-                process.assert_not_called()
+            for status in ("success", "verified_empty"):
+                record = {"date": "2026-09-23", "status": status, "session_ids": "001" if status == "success" else ""}
+                (folder / "status.json").write_text(json.dumps(record))
+                with patch.object(daily, "DAILY", Path(tmp)), patch.object(daily.subprocess, "Popen") as process:
+                    self.assertEqual(daily.run_day(date(2026, 9, 23)), record)
+                    process.assert_not_called()
 
     def test_failed_day_does_not_reuse_previous_sql_results(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -42,12 +42,13 @@ def run_day(day):
     status_file = folder / "status.json"
     if status_file.exists():
         saved = json.loads(status_file.read_text())
-        if saved.get("status") == "success":
-            print(f"{day}: memakai hasil yang sudah berhasil.", flush=True)
+        if saved.get("status") in ("success", "verified_empty"):
+            print(f"{day}: memakai hasil tersimpan ({saved['status']}).", flush=True)
             return saved
     folder.mkdir(parents=True, exist_ok=True)
     start, end = f"{day} 00:00:00", f"{day} 23:59:59"
     command = ["bash", "scripts/run-workflow.sh", "--from", start, "--to", end, "--variable", "BROWSER:headlesschrome"]
+    started_at = datetime.now().timestamp()
     print(f"\n=== {day}: 00:00:00 -> 23:59:59 WIB ===", flush=True)
     with (folder / "console.log").open("w") as log:
         with subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as process:
@@ -56,6 +57,10 @@ def run_day(day):
                 log.write(line)
                 log.flush()
             returncode = process.wait()
+    for name in ["output.xml", "log.html", "report.html"]:
+        source = ROOT / "reports" / "robot" / name
+        if source.is_file() and source.stat().st_mtime >= started_at:
+            shutil.copy2(source, folder / name)
     record = {"date": str(day), "status": "success" if returncode == 0 else "failed", "command": command}
     for relative in ["processed/grafana_summary.json", "sql/sql_summary.json"]:
         source = ROOT / "data" / relative
@@ -98,8 +103,10 @@ def main():
         summarize(records, report)
         day += timedelta(days=1)
     ids = summarize(records, report)
-    failed = [record["date"] for record in records if record["status"] != "success"]
-    print(f"\nSelesai: {len(records) - len(failed)}/{len(records)} hari berhasil.")
+    failed = [record["date"] for record in records if record["status"] not in ("success", "verified_empty")]
+    verified_empty = sum(record["status"] == "verified_empty" for record in records)
+    print(f"\nSelesai: {len(records) - len(failed)}/{len(records)} tanggal diperiksa.")
+    print(f"Workflow sukses: {len(records) - len(failed) - verified_empty}; kosong terverifikasi: {verified_empty}.")
     print(f"Session ID akhir tanpa duplikat ({len(ids)}):")
     for session_id in ids:
         print(f"  {session_id}")
