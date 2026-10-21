@@ -37,7 +37,8 @@ then saves the exact selected start/end values to
 the same start/end bounds, both inclusive. It does not calculate its own
 dates, even when SQL runs on a different day. This assumes `MsgTime_c`
 stores local WIB timestamps. `scripts/match_sessions.py` compares the downloaded session
-IDs with the SQL results and queries details for unmatched sessions.
+IDs with the SQL results. It selects SQL/Yeastar sessions absent from
+Grafana (SQL IDs minus Grafana IDs), then queries details for those sessions.
 The full runner automatically runs `scripts/sql_server.py`, followed by
 `scripts/match_sessions.py`. To run only the browser, use
 `bash robot/run-test.sh`. SQL and matching can also be run separately:
@@ -118,6 +119,29 @@ SQL Server → pencocokan session. File `data/processed/merged.csv` dan
 ditambahkan ke hasil hari sebelumnya. SQL yang dijalankan terpisah akan
 membaca rentang tersimpan itu, bukan parameter atau tanggal hari berjalan.
 
+## Tujuan pencocokan session
+
+Acuan alur adalah `notebooks/cek.ipynb`: cari **session yang ada di SQL/Yeastar,
+tetapi tidak ada di Grafana**.
+
+```text
+missing = session SQL/Yeastar - session Grafana
+```
+
+`unmatched_sessions.csv` menyimpan satu baris per session dengan kolom
+`session_id`, `first_msg_time`, dan `last_msg_time` dari SQL. Session ID
+normalisasi sebagai string agar nol di depan tidak hilang. Daftar ID
+ini juga ditampilkan di terminal.
+
+Query detail UD39 menerima ID yang sama, lalu menerapkan filter
+`FromType_c = 'API' OR ToType_c = 'API'` dan `TotalRows <= 3`.
+Karena itu, jumlah baris `unmatched_session_details.csv` bisa lebih kecil
+daripada jumlah session yang hilang. Perhitungan `TotalRows` pada tahap
+detail mencakup seluruh riwayat session, bukan hanya rentang unduhan.
+
+Notebook masih menyimpan hasil eksekusi historis. Jalankan ulang selnya
+untuk membandingkan input saat ini. Lihat [hasil penelusuran alur](docs/alur-session.md).
+
 ## Output files
 
 - `data/downloads/*.csv`: downloaded source CSV files.
@@ -125,7 +149,7 @@ membaca rentang tersimpan itu, bukan parameter atau tanggal hari berjalan.
 - `data/processed/time_range.json`: exact Grafana start/end and timezone used by SQL.
 - `reports/robot/report.html`: latest Selenium test report.
 - `data/sql/sql_query_results.csv`: SQL session IDs and first/last message times.
-- `data/results/unmatched_sessions.csv`: unmatched session IDs and their counts.
+- `data/results/unmatched_sessions.csv`: SQL/Yeastar session IDs missing from Grafana, with `first_msg_time` and `last_msg_time`.
 - `data/results/unmatched_session_details.csv`: SQL details for unmatched sessions.
 
 ## Project layout

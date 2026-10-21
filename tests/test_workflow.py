@@ -76,23 +76,23 @@ class WorkflowTests(unittest.TestCase):
                     sql_server.main()
                 connect.assert_not_called()
 
-    def test_matching_uses_latest_processed_csv_and_preserves_id_strings(self):
+    def test_matching_finds_sql_sessions_missing_from_grafana(self):
         self.assertEqual(match_sessions.MERGED_CSV, ROOT / "data/processed/merged.csv")
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
             merged = folder / "merged.csv"
             merged.write_text("session_id\n001\n002\n002\n")
             sql = folder / "sql.csv"
-            sql.write_text("session_id\n001\n")
+            sql.write_text("session_id,first_msg_time,last_msg_time\n001,2026-10-20 08:00:00,2026-10-20 09:00:00\n003,2026-10-20 10:00:00,2026-10-20 11:00:00\n003,2026-10-20 10:00:00,2026-10-20 11:00:00\n")
             unmatched = folder / "results/unmatched.csv"
             details = folder / "results/details.csv"
-            with patch.object(match_sessions, "MERGED_CSV", merged), patch.object(match_sessions, "SQL_RESULTS_CSV", sql), patch.object(match_sessions, "UNMATCHED_CSV", unmatched), patch.object(match_sessions, "DETAILS_CSV", details), patch.object(match_sessions, "query_unmatched_sessions", return_value=(["Key1"], [("002",)])) as query, patch("builtins.print") as output:
+            with patch.object(match_sessions, "MERGED_CSV", merged), patch.object(match_sessions, "SQL_RESULTS_CSV", sql), patch.object(match_sessions, "UNMATCHED_CSV", unmatched), patch.object(match_sessions, "DETAILS_CSV", details), patch.object(match_sessions, "query_unmatched_sessions", return_value=(["Key1"], [("003",)])) as query, patch("builtins.print") as output:
                 match_sessions.main()
-            query.assert_called_once_with(["002"])
-            output.assert_any_call("Session ID tidak ditemukan di SQL:")
-            output.assert_any_call("  002 (2 baris di CSV)")
+            query.assert_called_once_with(["003"])
+            output.assert_any_call("Session ID SQL/Yeastar yang tidak ditemukan di Grafana:")
+            output.assert_any_call("  003")
             with unmatched.open(encoding="utf-8-sig", newline="") as file:
-                self.assertEqual(list(csv.DictReader(file)), [{"session_id": "002", "merged_count": "2"}])
+                self.assertEqual(list(csv.DictReader(file)), [{"session_id": "003", "first_msg_time": "2026-10-20 10:00:00", "last_msg_time": "2026-10-20 11:00:00"}])
             self.assertTrue(details.is_file())
 
 

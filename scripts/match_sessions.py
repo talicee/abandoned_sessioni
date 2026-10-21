@@ -84,14 +84,25 @@ def query_unmatched_sessions(session_ids):
 
 def main():
     merged_ids = read_session_ids(MERGED_CSV)
-    sql_ids = read_session_ids(SQL_RESULTS_CSV)
+    sql_frame = pd.read_csv(
+        SQL_RESULTS_CSV,
+        usecols=["session_id", "first_msg_time", "last_msg_time"],
+        dtype={"session_id": "string"},
+    )
+    sql_frame["session_id"] = sql_frame["session_id"].str.strip()
+    sql_frame = sql_frame[sql_frame["session_id"].notna() & sql_frame["session_id"].ne("")]
     UNMATCHED_CSV.parent.mkdir(parents=True, exist_ok=True)
 
-    # Keep one output row per ID and include its frequency in merged.csv.
-    merged_counts = merged_ids.value_counts()
-    sql_id_set = set(sql_ids)
-    unmatched_counts = merged_counts[~merged_counts.index.isin(sql_id_set)]
-    unmatched = unmatched_counts.rename_axis("session_id").reset_index(name="merged_count")
+    # Match cek.ipynb: SQL/Yeastar sessions absent from Grafana.
+    merged_id_set = set(merged_ids)
+    sql_id_set = set(sql_frame["session_id"])
+    unmatched = (
+        sql_frame[~sql_frame["session_id"].isin(merged_id_set)]
+        .drop_duplicates(subset="session_id")
+        .loc[:, ["session_id", "first_msg_time", "last_msg_time"]]
+        .sort_values("session_id")
+        .reset_index(drop=True)
+    )
     unmatched.to_csv(UNMATCHED_CSV, index=False, encoding="utf-8-sig")
 
     # Read the saved unmatched list so the SQL query uses every output session ID.
@@ -99,9 +110,9 @@ def main():
     unmatched_session_ids = unmatched_frame["session_id"].dropna().str.strip().tolist()
     unmatched_session_ids = [session_id for session_id in unmatched_session_ids if session_id]
 
-    print("Session ID tidak ditemukan di SQL:")
-    for session_id, count in unmatched.itertuples(index=False, name=None):
-        print(f"  {session_id} ({count} baris di CSV)")
+    print("Session ID SQL/Yeastar yang tidak ditemukan di Grafana:")
+    for session_id in unmatched_session_ids:
+        print(f"  {session_id}")
     if unmatched.empty:
         print("  (tidak ada)")
 
@@ -111,9 +122,9 @@ def main():
         writer.writerow(columns)
         writer.writerows(rows)
 
-    print(f"Unique session IDs in merged.csv: {len(merged_counts)}")
+    print(f"Unique session IDs in merged.csv: {len(merged_id_set)}")
     print(f"Unique session IDs in sql_query_results.csv: {len(sql_id_set)}")
-    print(f"Unmatched IDs from merged.csv: {len(unmatched_session_ids)}")
+    print(f"SQL/Yeastar session IDs missing from Grafana: {len(unmatched_session_ids)}")
     print(f"UD39 rows returned: {len(rows)}")
     print(f"Saved unmatched IDs to {UNMATCHED_CSV}")
     print(f"Saved SQL details to {DETAILS_CSV}")
