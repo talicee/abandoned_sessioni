@@ -1,0 +1,8 @@
+.env
+.env.*
+.env copy
+!.env.example
+__pycache__/
+*.py[cod]
+robot/ConsoleLog/
+robot/YeastarLog/
