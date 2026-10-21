@@ -3,6 +3,7 @@ Library    SeleniumLibrary
 Library    OperatingSystem
 Library    Process
 Library    ${CURDIR}${/}..${/}scripts${/}time_range.py
+Test Teardown    Run Keyword If    $BROWSER == 'headlesschrome'    Close All Browsers
 
 *** Variables ***
 ${URL}             https://e.samator.com/one/monitoring/grafana/d/bf5ymm8nzu134b/4-one-service-log?var-env=prod

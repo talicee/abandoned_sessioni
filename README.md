@@ -233,7 +233,9 @@ Untuk 23 September sampai 21 Oktober 2026:
 
 Runner memanggil workflow lengkap secara **berurutan**, selalu headless,
 untuk satu tanggal pukul **00:00:00 sampai 23:59:59 WIB** sebelum pindah
-ke tanggal berikutnya. Setiap hari memiliki folder output sendiri, sehingga
+ke tanggal berikutnya. Browser headless ditutup otomatis setelah tes,
+termasuk saat gagal, agar sesi Chrome tidak menumpuk.
+Setiap hari memiliki folder output sendiri, sehingga
 hasil hari sebelumnya tidak tertimpa:
 
 ```text
