@@ -9,14 +9,19 @@ from pathlib import Path
 SESSION_ID_PATTERN = re.compile(r'session_id[^0-9]*([0-9]+)')
 
 def main():
-    parser = argparse.ArgumentParser(description="Merge Grafana CSV files and extract session IDs.")
-    parser.add_argument("folder", nargs="?", type=Path, default=Path(__file__).resolve().parent)
-    folder = parser.parse_args().folder.resolve()
+    parser = argparse.ArgumentParser(description="Process the latest Grafana CSV and extract session IDs.")
+    parser.add_argument("input", nargs="?", type=Path, default=Path(__file__).resolve().parent / "robot" / "downloads")
+    source = parser.parse_args().input.resolve()
+    folder = source if source.is_dir() else source.parent
     output_path = folder / "merged.csv"
-    input_paths = sorted(
-        path for path in folder.glob("*.csv")
-        if path.resolve() != output_path.resolve()
-    )
+    if source.is_dir():
+        candidates = [path for path in source.glob("*.csv") if path != output_path]
+        if not candidates:
+            raise FileNotFoundError("No input CSV files found")
+        source = max(candidates, key=lambda path: path.stat().st_mtime_ns)
+    if source == output_path:
+        raise ValueError("Input must be a downloaded CSV, not merged.csv")
+    input_paths = [source]
 
     rows = []
     fieldnames = None
@@ -54,7 +59,7 @@ def main():
         writer.writerows(row for _, row in rows)
 
     extracted = sum(bool(row.get("session_id")) for _, row in rows)
-    print(f"Merged {len(rows)} rows from {len(input_paths)} files into {output_path.name}")
+    print(f"Processed {len(rows)} rows from {source.name} into {output_path.name}")
     print(f"Extracted session_id for {extracted} rows")
 
 

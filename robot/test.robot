@@ -8,13 +8,14 @@ ${URL}             https://e.samator.com/one/monitoring/grafana/d/bf5ymm8nzu134b
 ${BROWSER}         chrome
 ${USERNAME}        admin
 ${PASSWORD}        %{GRAFANA_PASSWORD}
-${FROM_TIME}       2026-10-20 00:00:00
-${TO_TIME}         2026-10-21 23:59:59
 ${TIMEOUT}         30s
 
 *** Test Cases ***
 Set Grafana Time Range
     [Documentation]    Log in to Grafana, open the time picker, and apply the requested absolute range.
+    ${cutoff}=    Evaluate    datetime.datetime.now(zoneinfo.ZoneInfo('Asia/Jakarta')).replace(hour=16, minute=0, second=0, microsecond=0)    modules=datetime,zoneinfo
+    ${FROM_TIME}=    Evaluate    ($cutoff - datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')    modules=datetime
+    ${TO_TIME}=    Evaluate    $cutoff.strftime('%Y-%m-%d %H:%M:%S')
     ${chrome_options}=    Evaluate    __import__('selenium').webdriver.ChromeOptions()
     ${download_directory}=    Set Variable    ${CURDIR}${/}downloads
     Create Directory    ${download_directory}
@@ -87,9 +88,9 @@ Set Grafana Time Range
     Wait Until Element Is Visible    xpath=//button[normalize-space(.)='Download CSV']    timeout=${TIMEOUT}
     ${previous_csvs}=    List Files In Directory    ${download_directory}    *.csv
     Click Element    xpath=//button[normalize-space(.)='Download CSV']
-    Wait Until Keyword Succeeds    120s    1s    CSV Download Should Be Complete    ${download_directory}    ${previous_csvs}
+    ${downloaded_csv}=    Wait Until Keyword Succeeds    120s    1s    CSV Download Should Be Complete    ${download_directory}    ${previous_csvs}
     ${python}=    Evaluate    sys.executable    modules=sys
-    ${result}=    Run Process    ${python}    ${CURDIR}${/}..${/}join.py    ${download_directory}    timeout=120s    on_timeout=terminate
+    ${result}=    Run Process    ${python}    ${CURDIR}${/}..${/}join.py    ${downloaded_csv}    timeout=120s    on_timeout=terminate
     Log    ${result.stdout}
     Should Be Equal As Integers    ${result.rc}    0    msg=${result.stderr}
 
@@ -108,10 +109,13 @@ CSV Download Should Be Complete
     ${current_csvs}=    List Files In Directory    ${directory}    *.csv
     ${new_csvs}=    Evaluate    set($current_csvs) - set($previous_csvs) - {'merged.csv'}
     Should Not Be Empty    ${new_csvs}    CSV baru belum selesai diunduh.
+    Length Should Be    ${new_csvs}    1
     FOR    ${filename}    IN    @{new_csvs}
         ${size}=    Get File Size    ${directory}${/}${filename}
         Should Be True    ${size} > 0
     END
+    ${filename}=    Evaluate    next(iter($new_csvs))
+    RETURN    ${directory}${/}${filename}
 
 
 
