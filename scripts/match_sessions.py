@@ -110,12 +110,6 @@ def main():
     unmatched_session_ids = unmatched_frame["session_id"].dropna().str.strip().tolist()
     unmatched_session_ids = [session_id for session_id in unmatched_session_ids if session_id]
 
-    print("Session ID SQL/Yeastar yang tidak ditemukan di Grafana:")
-    for session_id in unmatched_session_ids:
-        print(f"  {session_id}")
-    if unmatched.empty:
-        print("  (tidak ada)")
-
     columns, rows = query_unmatched_sessions(unmatched_session_ids)
     with DETAILS_CSV.open("w", newline="", encoding="utf-8-sig") as csv_file:
         writer = csv.writer(csv_file)
@@ -128,6 +122,13 @@ def main():
     print(f"UD39 rows returned: {len(rows)}")
     print(f"Saved unmatched IDs to {UNMATCHED_CSV}")
     print(f"Saved SQL details to {DETAILS_CSV}")
+    id_index = columns.index("Key1")
+    final_session_ids = sorted({str(row[id_index]).strip() for row in rows})
+    print(f"Session ID hasil akhir ({len(final_session_ids)}):")
+    for session_id in final_session_ids:
+        print(f"  {session_id}")
+    if not final_session_ids:
+        print("  (tidak ada)")
 
 
 if __name__ == "__main__":

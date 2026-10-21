@@ -77,7 +77,8 @@ Filter detail dipertahankan. `unmatched_sessions.csv` tetap berisi seluruh
 3. `sql_server.py` mengambil session ChatMessage untuk rentang Grafana yang sama.
 4. `match_sessions.py` menormalisasi ID, membandingkan SQL dikurangi Grafana,
    menghapus duplikat ID, dan menyimpan waktu pertama/terakhir dari SQL.
-5. ID missing dicetak di terminal dan dikirim ke query detail UD39.
+5. ID missing dikirim ke query detail UD39; terminal mencetak hanya ID
+   yang lolos filter detail. Seluruh ID missing tetap tersimpan dalam CSV.
 
 Tes regresi menggunakan ID yang hanya ada di masing-masing sisi sehingga
 perbandingan terbalik tidak bisa kembali lolos. Ketujuh tes lokal lulus,

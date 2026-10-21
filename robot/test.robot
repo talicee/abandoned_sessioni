@@ -14,11 +14,12 @@ ${FROM_TIME}       ${EMPTY}
 ${TO_TIME}         ${EMPTY}
 
 *** Test Cases ***
-Set Grafana Time Range
+Download Grafana CSV and Process Latest File
     [Documentation]    Log in to Grafana, open the time picker, and apply the requested absolute range.
     ${start}    ${cutoff}=    Resolve Time Range    ${FROM_TIME}    ${TO_TIME}
     ${FROM_TIME}=    Evaluate    $start.strftime('%Y-%m-%d %H:%M:%S')
     ${TO_TIME}=    Evaluate    $cutoff.strftime('%Y-%m-%d %H:%M:%S')
+    Log To Console    Rentang WIB: ${FROM_TIME} -> ${TO_TIME}
     ${chrome_options}=    Evaluate    __import__('selenium').webdriver.ChromeOptions()
     ${download_directory}=    Normalize Path    ${CURDIR}${/}..${/}data${/}downloads
     Create Directory    ${download_directory}
@@ -26,6 +27,7 @@ Set Grafana Time Range
     Call Method    ${chrome_options}    add_experimental_option    prefs    ${download_prefs}
     Call Method    ${chrome_options}    add_experimental_option    detach    ${True}
     Open Browser    ${URL}    ${BROWSER}    options=${chrome_options}
+    Log To Console    Membuka Grafana dan login...
     Set Window Size    1440    1000
 
     # Log in if Grafana presents its sign-in page.
@@ -58,6 +60,7 @@ Set Grafana Time Range
     ${expected_to}=    Evaluate    str(int($cutoff.timestamp() * 1000))
     Wait Until Keyword Succeeds    10s    500ms    Grafana Range Should Match    ${expected_from}    ${expected_to}
     # Hover over the Console Log panel header to reveal its controls.
+    Log To Console    Menerapkan filter log Yeastar...
     Wait Until Element Is Visible    xpath=//*[@data-testid='data-testid header-container'][contains(normalize-space(.),'Console Log')]    timeout=${TIMEOUT}
     Mouse Over    xpath=//*[@data-testid='data-testid header-container'][contains(normalize-space(.),'Console Log')]
     # Open the panel menu, then click Inspect and Panel JSON.
@@ -89,11 +92,13 @@ Set Grafana Time Range
     Wait Until Keyword Succeeds    3x    1s    Open Inspect Submenu Item    xpath=//*[@role='menuitem' and normalize-space(.)='Data']
     Wait Until Element Is Visible    xpath=//button[normalize-space(.)='Download CSV']    timeout=${TIMEOUT}
     ${previous_csvs}=    List Files In Directory    ${download_directory}    *.csv
+    Log To Console    Mengunduh CSV dan menunggu unduhan selesai...
     Click Element    xpath=//button[normalize-space(.)='Download CSV']
     ${downloaded_csv}=    Wait Until Keyword Succeeds    120s    1s    CSV Download Should Be Complete    ${download_directory}    ${previous_csvs}
     ${python}=    Evaluate    sys.executable    modules=sys
     ${result}=    Run Process    ${python}    ${CURDIR}${/}..${/}scripts${/}join.py    ${downloaded_csv}    timeout=120s    on_timeout=terminate
     Log    ${result.stdout}
+    Log To Console    ${result.stdout}
     Should Be Equal As Integers    ${result.rc}    0    msg=${result.stderr}
     ${range_json}=    Evaluate    json.dumps({'from': $FROM_TIME, 'to': $TO_TIME, 'timezone': 'Asia/Jakarta'})    modules=json
     Create File    ${CURDIR}${/}..${/}data${/}processed${/}time_range.json    ${range_json}

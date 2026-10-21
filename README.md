@@ -131,7 +131,8 @@ missing = session SQL/Yeastar - session Grafana
 `unmatched_sessions.csv` menyimpan satu baris per session dengan kolom
 `session_id`, `first_msg_time`, dan `last_msg_time` dari SQL. Session ID
 normalisasi sebagai string agar nol di depan tidak hilang. Daftar ID
-ini juga ditampilkan di terminal.
+missing tetap disimpan di CSV. Terminal hanya menampilkan daftar session ID
+yang lolos filter detail UD39, yaitu hasil akhir yang perlu ditindaklanjuti.
 
 Query detail UD39 menerima ID yang sama, lalu menerapkan filter
 `FromType_c = 'API' OR ToType_c = 'API'` dan `TotalRows <= 3`.
@@ -141,6 +142,36 @@ detail mencakup seluruh riwayat session, bukan hanya rentang unduhan.
 
 Notebook masih menyimpan hasil eksekusi historis. Jalankan ulang selnya
 untuk membandingkan input saat ini. Lihat [hasil penelusuran alur](docs/alur-session.md).
+
+### Tampilan terminal
+
+Output dibagi menjadi tiga tahap dengan nama berbeda:
+
+```text
+[1/3] Download Grafana dan proses CSV terbaru
+Rentang WIB: ... -> ...
+Membuka Grafana dan login...
+Menerapkan filter log Yeastar...
+Mengunduh CSV dan menunggu unduhan selesai...
+Grafana dan pemrosesan CSV: PASS
+
+[2/3] Ambil session SQL Server untuk rentang Grafana
+...
+
+[3/3] Cocokkan session dan ambil detail UD39
+...
+Session ID hasil akhir (2):
+  <session_id_1>
+  <session_id_2>
+```
+
+Daftar ID di terminal berasal dari `Key1` pada hasil detail UD39 setelah
+filter API dan jumlah baris diterapkan. Seluruh session missing sebelum
+filter tetap tersedia di `data/results/unmatched_sessions.csv`.
+Banner Robot Framework dan titik progres berulang disembunyikan; error
+serta warning tetap ditampilkan. Log lengkap tersedia di
+`reports/robot/log.html`. Untuk output Robot lengkap saat debugging,
+tambahkan `--console verbose --consolemarkers off` pada perintah runner.
 
 ## Output files
 

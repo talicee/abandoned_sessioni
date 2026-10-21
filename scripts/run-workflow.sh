@@ -5,6 +5,9 @@ if [ ! -x .venv/bin/python ]; then
     python3 -m venv .venv
 fi
 .venv/bin/python -c 'import robot, SeleniumLibrary, pandas, pyodbc' 2>/dev/null || .venv/bin/python -m pip install -r requirements.txt
+printf '\n[1/3] Download Grafana dan proses CSV terbaru\n'
 bash robot/run-test.sh "$@"
+printf '\n[2/3] Ambil session SQL Server untuk rentang Grafana\n'
 .venv/bin/python scripts/sql_server.py
+printf '\n[3/3] Cocokkan session dan ambil detail UD39\n'
 .venv/bin/python scripts/match_sessions.py

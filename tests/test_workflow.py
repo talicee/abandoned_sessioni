@@ -83,16 +83,17 @@ class WorkflowTests(unittest.TestCase):
             merged = folder / "merged.csv"
             merged.write_text("session_id\n001\n002\n002\n")
             sql = folder / "sql.csv"
-            sql.write_text("session_id,first_msg_time,last_msg_time\n001,2026-10-20 08:00:00,2026-10-20 09:00:00\n003,2026-10-20 10:00:00,2026-10-20 11:00:00\n003,2026-10-20 10:00:00,2026-10-20 11:00:00\n")
+            sql.write_text("session_id,first_msg_time,last_msg_time\n001,2026-10-20 08:00:00,2026-10-20 09:00:00\n003,2026-10-20 10:00:00,2026-10-20 11:00:00\n003,2026-10-20 10:00:00,2026-10-20 11:00:00\n004,2026-10-20 12:00:00,2026-10-20 13:00:00\n")
             unmatched = folder / "results/unmatched.csv"
             details = folder / "results/details.csv"
             with patch.object(match_sessions, "MERGED_CSV", merged), patch.object(match_sessions, "SQL_RESULTS_CSV", sql), patch.object(match_sessions, "UNMATCHED_CSV", unmatched), patch.object(match_sessions, "DETAILS_CSV", details), patch.object(match_sessions, "query_unmatched_sessions", return_value=(["Key1"], [("003",)])) as query, patch("builtins.print") as output:
                 match_sessions.main()
-            query.assert_called_once_with(["003"])
-            output.assert_any_call("Session ID SQL/Yeastar yang tidak ditemukan di Grafana:")
+            query.assert_called_once_with(["003", "004"])
+            output.assert_any_call("Session ID hasil akhir (1):")
+            self.assertNotIn(unittest.mock.call("  004"), output.call_args_list)
             output.assert_any_call("  003")
             with unmatched.open(encoding="utf-8-sig", newline="") as file:
-                self.assertEqual(list(csv.DictReader(file)), [{"session_id": "003", "first_msg_time": "2026-10-20 10:00:00", "last_msg_time": "2026-10-20 11:00:00"}])
+                self.assertEqual(list(csv.DictReader(file)), [{"session_id": "003", "first_msg_time": "2026-10-20 10:00:00", "last_msg_time": "2026-10-20 11:00:00"}, {"session_id": "004", "first_msg_time": "2026-10-20 12:00:00", "last_msg_time": "2026-10-20 13:00:00"}])
             self.assertTrue(details.is_file())
 
 
