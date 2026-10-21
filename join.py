@@ -2,13 +2,16 @@
 
 import csv
 import re
+import argparse
 from datetime import datetime
 from pathlib import Path
 
 SESSION_ID_PATTERN = re.compile(r'session_id[^0-9]*([0-9]+)')
 
 def main():
-    folder = Path(__file__).resolve().parent
+    parser = argparse.ArgumentParser(description="Merge Grafana CSV files and extract session IDs.")
+    parser.add_argument("folder", nargs="?", type=Path, default=Path(__file__).resolve().parent)
+    folder = parser.parse_args().folder.resolve()
     output_path = folder / "merged.csv"
     input_paths = sorted(
         path for path in folder.glob("*.csv")

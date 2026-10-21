@@ -1,5 +1,7 @@
 ﻿*** Settings ***
 Library    SeleniumLibrary
+Library    OperatingSystem
+Library    Process
 
 *** Variables ***
 ${URL}             https://e.samator.com/one/monitoring/grafana/d/bf5ymm8nzu134b/4-one-service-log?var-env=test
@@ -14,11 +16,13 @@ ${TIMEOUT}         30s
 Set Grafana Time Range
     [Documentation]    Log in to Grafana, open the time picker, and apply the requested absolute range.
     ${chrome_options}=    Evaluate    __import__('selenium').webdriver.ChromeOptions()
-    ${download_prefs}=    Create Dictionary    download.default_directory=D:/MAGANG/grafana/robot    download.prompt_for_download=${False}    download.directory_upgrade=${True}    safebrowsing.enabled=${True}
+    ${download_directory}=    Set Variable    ${CURDIR}${/}downloads
+    Create Directory    ${download_directory}
+    ${download_prefs}=    Create Dictionary    download.default_directory=${download_directory}    download.prompt_for_download=${False}    download.directory_upgrade=${True}    safebrowsing.enabled=${True}
     Call Method    ${chrome_options}    add_experimental_option    prefs    ${download_prefs}
     Call Method    ${chrome_options}    add_experimental_option    detach    ${True}
     Open Browser    ${URL}    ${BROWSER}    options=${chrome_options}
-    Maximize Browser Window
+    Set Window Size    1440    1000
 
     # Log in if Grafana presents its sign-in page.
     ${login_visible}=    Run Keyword And Return Status    Wait Until Element Is Visible    name=user    timeout=5s
@@ -56,10 +60,8 @@ Set Grafana Time Range
     # Open the panel menu, then click Inspect and Panel JSON.
     ${panel_menu_button}=    Set Variable    css:button[data-testid^="data-testid Panel menu"]
     Click Element    ${panel_menu_button}
-    Sleep    2s
-    Click Element    css:[data-testid="data-testid Panel menu item Inspect"]
-    Sleep    2s
-    Click Element    css:[data-testid="data-testid Panel menu item Panel JSON"]
+    Wait Until Element Is Visible    css:[data-testid="data-testid Panel menu item Inspect"]    timeout=${TIMEOUT}
+    Wait Until Keyword Succeeds    3x    1s    Open Inspect Submenu Item    css:[data-testid="data-testid Panel menu item Panel JSON"]
     Sleep    2s
     # Wait for Monaco to load, navigate to line 25, replace it, then apply.
     Wait Until Element Is Visible    css:.monaco-editor .view-lines    timeout=${TIMEOUT}
@@ -81,11 +83,35 @@ Set Grafana Time Range
     Click Element    ${panel_menu_button}
     ${inspect_menu_item}=    Set Variable    css:[data-testid="data-testid Panel menu item Inspect"]
     Wait Until Element Is Visible    ${inspect_menu_item}    timeout=${TIMEOUT}
-    Mouse Over    ${inspect_menu_item}
-    Wait Until Element Is Visible    xpath=//*[@role='menuitem' and normalize-space(.)='Data']    timeout=${TIMEOUT}
-    Click Element    xpath=//*[@role='menuitem' and normalize-space(.)='Data']
+    Wait Until Keyword Succeeds    3x    1s    Open Inspect Submenu Item    xpath=//*[@role='menuitem' and normalize-space(.)='Data']
     Wait Until Element Is Visible    xpath=//button[normalize-space(.)='Download CSV']    timeout=${TIMEOUT}
+    ${previous_csvs}=    List Files In Directory    ${download_directory}    *.csv
     Click Element    xpath=//button[normalize-space(.)='Download CSV']
+    Wait Until Keyword Succeeds    120s    1s    CSV Download Should Be Complete    ${download_directory}    ${previous_csvs}
+    ${python}=    Evaluate    sys.executable    modules=sys
+    ${result}=    Run Process    ${python}    ${CURDIR}${/}..${/}join.py    ${download_directory}    timeout=120s    on_timeout=terminate
+    Log    ${result.stdout}
+    Should Be Equal As Integers    ${result.rc}    0    msg=${result.stderr}
+
+*** Keywords ***
+Open Inspect Submenu Item
+    [Arguments]    ${item}
+    Mouse Over    css:[data-testid="data-testid Panel menu item Inspect"]
+    Wait Until Element Is Visible    ${item}    timeout=3s
+    ${element}=    Get WebElement    ${item}
+    Execute Javascript    arguments[0].click();    ARGUMENTS    ${element}
+
+CSV Download Should Be Complete
+    [Arguments]    ${directory}    ${previous_csvs}
+    ${partial}=    List Files In Directory    ${directory}    *.crdownload
+    Should Be Empty    ${partial}
+    ${current_csvs}=    List Files In Directory    ${directory}    *.csv
+    ${new_csvs}=    Evaluate    set($current_csvs) - set($previous_csvs) - {'merged.csv'}
+    Should Not Be Empty    ${new_csvs}    CSV baru belum selesai diunduh.
+    FOR    ${filename}    IN    @{new_csvs}
+        ${size}=    Get File Size    ${directory}${/}${filename}
+        Should Be True    ${size} > 0
+    END
 
 
 

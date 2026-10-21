@@ -1,0 +1,5 @@
+.venv/
+robot/results/
+robot/downloads/
+.selenium-cache/
+robot/.grafana-password
