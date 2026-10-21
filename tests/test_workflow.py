@@ -68,9 +68,11 @@ class WorkflowTests(unittest.TestCase):
             sql.write_text("session_id\n001\n")
             unmatched = folder / "results/unmatched.csv"
             details = folder / "results/details.csv"
-            with patch.object(match_sessions, "MERGED_CSV", merged), patch.object(match_sessions, "SQL_RESULTS_CSV", sql), patch.object(match_sessions, "UNMATCHED_CSV", unmatched), patch.object(match_sessions, "DETAILS_CSV", details), patch.object(match_sessions, "query_unmatched_sessions", return_value=(["Key1"], [("002",)])) as query:
+            with patch.object(match_sessions, "MERGED_CSV", merged), patch.object(match_sessions, "SQL_RESULTS_CSV", sql), patch.object(match_sessions, "UNMATCHED_CSV", unmatched), patch.object(match_sessions, "DETAILS_CSV", details), patch.object(match_sessions, "query_unmatched_sessions", return_value=(["Key1"], [("002",)])) as query, patch("builtins.print") as output:
                 match_sessions.main()
             query.assert_called_once_with(["002"])
+            output.assert_any_call("Session ID tidak ditemukan di SQL:")
+            output.assert_any_call("  002 (2 baris di CSV)")
             with unmatched.open(encoding="utf-8-sig", newline="") as file:
                 self.assertEqual(list(csv.DictReader(file)), [{"session_id": "002", "merged_count": "2"}])
             self.assertTrue(details.is_file())

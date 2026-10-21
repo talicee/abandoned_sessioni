@@ -99,6 +99,12 @@ def main():
     unmatched_session_ids = unmatched_frame["session_id"].dropna().str.strip().tolist()
     unmatched_session_ids = [session_id for session_id in unmatched_session_ids if session_id]
 
+    print("Session ID tidak ditemukan di SQL:")
+    for session_id, count in unmatched.itertuples(index=False, name=None):
+        print(f"  {session_id} ({count} baris di CSV)")
+    if unmatched.empty:
+        print("  (tidak ada)")
+
     columns, rows = query_unmatched_sessions(unmatched_session_ids)
     with DETAILS_CSV.open("w", newline="", encoding="utf-8-sig") as csv_file:
         writer = csv.writer(csv_file)
