@@ -193,10 +193,40 @@ serta warning tetap ditampilkan. Log lengkap tersedia di
 `reports/robot/log.html`. Untuk output Robot lengkap saat debugging,
 tambahkan `--console verbose --consolemarkers off` pada perintah runner.
 
+### Jumlah baris dan ringkasan sementara
+
+Terminal menampilkan jumlah **baris CSV Grafana**, jumlah **session unik**,
+dan timestamp paling awal/akhir pada CSV. CSV asli tetap tersimpan di
+`data/downloads/`; nama file tepatnya tercantum pada ringkasan.
+
+- `data/processed/grafana_summary.json`: sumber CSV, rentang diminta,
+  jumlah baris, jumlah session unik, dan timestamp aktual Grafana.
+- `data/sql/sql_summary.json`: parameter tanggal/jam SQL, jumlah session,
+  serta timestamp paling awal/akhir hasil query SQL.
+
+Ringkasan diganti setiap kali tahap tersebut dijalankan dan diabaikan Git.
+SQL mengelompokkan pesan per session, sehingga jumlah baris hasil SQL
+adalah jumlah session unik, bukan jumlah seluruh pesan. Semua timestamp
+hasil query awal SQL diverifikasi berada dalam rentang Grafana.
+
+CSV Grafana kosong/tanpa session ID menghentikan workflow sebelum tahap SQL.
+Ringkasan Grafana tetap disimpan dengan jumlah 0 agar bisa diperiksa.
+Matching yang dijalankan manual juga menolak CSV Grafana tanpa session ID;
+hasil kosong tidak boleh membuat seluruh session SQL dianggap missing.
+Jika workflow berhenti, output SQL/detail dari proses sebelumnya bisa masih
+ada: gunakan ringkasan dan status keberhasilan tahap saat memeriksa hasil.
+
+Filter tanggal berlaku pada pengambilan **daftar kandidat SQL**. Pengecekan
+balasan berikutnya sengaja membaca seluruh riwayat kandidat agar balasan
+API/agent di tanggal lain tetap dikenali. Karena itu timestamp pesan pada
+CSV detail bisa berada di luar rentang pengambilan kandidat.
+
 ## Output files
 
 - `data/downloads/*.csv`: downloaded source CSV files.
 - `data/processed/merged.csv`: processed latest download, with `session_id`.
+- `data/processed/grafana_summary.json`: temporary row/session counts and source CSV metadata.
+- `data/sql/sql_summary.json`: SQL time parameters, session count, and observed timestamps.
 - `data/processed/time_range.json`: exact Grafana start/end and timezone used by SQL.
 - `reports/robot/report.html`: latest Selenium test report.
 - `data/sql/sql_query_results.csv`: SQL session IDs and first/last message times.

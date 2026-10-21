@@ -28,5 +28,8 @@ if [ -z "${GRAFANA_PASSWORD:-}" ] && [ -f robot/.grafana-password ]; then
     GRAFANA_PASSWORD=$(cat robot/.grafana-password)
     export GRAFANA_PASSWORD
 fi
-.venv/bin/robot --console quiet --consolemarkers off --outputdir reports/robot "${robot_args[@]}" robot/test.robot
+if ! .venv/bin/robot --console quiet --consolemarkers off --outputdir reports/robot "${robot_args[@]}" robot/test.robot; then
+    printf 'Grafana/CSV gagal. Periksa reports/robot/log.html; SQL dan matching tidak dilanjutkan.\n' >&2
+    exit 1
+fi
 printf 'Grafana dan pemrosesan CSV: PASS\nLaporan: reports/robot/report.html\n'

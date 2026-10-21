@@ -80,23 +80,49 @@ class WorkflowTests(unittest.TestCase):
                 os.utime(path, (mtime, mtime))
             output = folder / "processed" / "merged.csv"
             for source, expected in [(folder, "222"), (folder / "old.csv", "111"), (folder, "222")]:
-                subprocess.run([sys.executable, str(ROOT / "scripts/join.py"), str(source), "--output", str(output)], check=True, capture_output=True)
+                result = subprocess.run([sys.executable, str(ROOT / "scripts/join.py"), str(source), "--output", str(output)], check=True, capture_output=True, text=True)
                 with output.open(encoding="utf-8-sig", newline="") as file:
                     rows = list(csv.DictReader(file))
                 self.assertEqual(len(rows), 1)
                 self.assertEqual(rows[0]["session_id"], expected)
+                summary = json.loads((output.parent / "grafana_summary.json").read_text())
+                self.assertEqual(summary["row_count"], 1)
+                self.assertEqual(summary["unique_session_count"], 1)
+                self.assertIn("Grafana: 1 baris", result.stdout)
+
+    def test_empty_grafana_download_saves_zero_count_and_stops(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "empty.csv"
+            source.write_text("Time,Line\n")
+            output = Path(tmp) / "merged.csv"
+            result = subprocess.run([sys.executable, str(ROOT / "scripts/join.py"), str(source), "--output", str(output)], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            summary = json.loads((output.parent / "grafana_summary.json").read_text())
+            self.assertEqual(summary["row_count"], 0)
+
+    def test_matching_rejects_empty_grafana_instead_of_marking_all_sql_missing(self):
+        with patch.object(match_sessions, "read_session_ids", return_value=match_sessions.pd.Series(dtype="string")), patch.object(match_sessions.pd, "read_csv", side_effect=AssertionError("SQL must not be read for empty Grafana")), patch.object(match_sessions, "query_unmatched_sessions") as query:
+            with self.assertRaises(ValueError):
+                match_sessions.main()
+            query.assert_not_called()
 
     def test_sql_uses_exact_saved_grafana_window(self):
         with tempfile.TemporaryDirectory() as tmp:
             connection = MagicMock()
             cursor = connection.__enter__.return_value.cursor.return_value
             cursor.description = [("session_id",), ("first_msg_time",), ("last_msg_time",)]
-            cursor.fetchall.return_value = []
+            cursor.fetchall.return_value = [("001", datetime(2028, 2, 29, 17), datetime(2028, 3, 1, 15))]
             env = {key: "test" for key in ("DB_DRIVER", "DB_SERVER", "DB_DATABASE", "DB_USERNAME", "DB_PASSWORD")}
             range_file = Path(tmp) / "time_range.json"
             range_file.write_text(json.dumps({"from": "2028-02-29 16:00:00", "to": "2028-03-01 16:00:00", "timezone": "Asia/Jakarta"}))
             with patch.dict(os.environ, env), patch.object(sql_server, "TIME_RANGE_FILE", range_file), patch.object(sql_server, "load_env_file"), patch.object(sql_server.pyodbc, "connect", return_value=connection), patch.object(sql_server, "OUTPUT_FILE", Path(tmp) / "sql/results.csv"):
                 sql_server.main()
+                summary = json.loads((Path(tmp) / "sql/sql_summary.json").read_text())
+                self.assertEqual(summary["session_count"], 1)
+                self.assertEqual(summary["earliest_time"], "2028-02-29 17:00:00")
+                cursor.fetchall.return_value = [("001", datetime(2028, 2, 28, 17), datetime(2028, 3, 1, 15))]
+                with self.assertRaises(ValueError):
+                    sql_server.main()
             query, kind, start, end = cursor.execute.call_args.args
             self.assertEqual(kind, "ChatMessage")
             self.assertEqual(end - start, timedelta(days=1))

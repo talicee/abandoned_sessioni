@@ -90,6 +90,7 @@ def main():
         ORDER BY first_msg_time;
     """
 
+    print(f"SQL parameter WIB: {start} -> {cutoff} (inklusif, dari Grafana)")
     with make_connection() as connection:
         cursor = connection.cursor()
         cursor.execute(query, "ChatMessage", start, cutoff)
@@ -97,14 +98,32 @@ def main():
         rows = cursor.fetchall()
         cursor.close()
 
+    first_index = columns.index("first_msg_time")
+    last_index = columns.index("last_msg_time")
+    first_times = [datetime.fromisoformat(str(row[first_index])) for row in rows]
+    last_times = [datetime.fromisoformat(str(row[last_index])) for row in rows]
+    if any(not start <= first <= last <= cutoff for first, last in zip(first_times, last_times)):
+        raise ValueError("SQL mengembalikan timestamp di luar rentang Grafana; proses dihentikan.")
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     with OUTPUT_FILE.open("w", newline="", encoding="utf-8-sig") as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(columns)
         writer.writerows(rows)
 
-    print(f"Saved {len(rows)} rows to {OUTPUT_FILE}")
-    print(f"SQL time range (WIB): {start} to {cutoff} (inclusive, from Grafana)")
+    summary = {
+        "from": time_range["from"],
+        "to": time_range["to"],
+        "timezone": time_range["timezone"],
+        "session_count": len(rows),
+        "earliest_time": min(first_times).isoformat(sep=" ") if rows else None,
+        "latest_time": max(last_times).isoformat(sep=" ") if rows else None,
+    }
+    summary_path = OUTPUT_FILE.with_name("sql_summary.json")
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print(f"SQL: {len(rows)} session unik (satu baris per session, bukan seluruh pesan)")
+    print(f"Timestamp hasil SQL: {summary['earliest_time']} -> {summary['latest_time']}")
+    print(f"CSV SQL: {OUTPUT_FILE}")
+    print(f"Ringkasan SQL: {summary_path}")
 
 
 if __name__ == "__main__":

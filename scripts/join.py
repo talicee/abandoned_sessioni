@@ -3,6 +3,7 @@
 import csv
 import re
 import argparse
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -13,6 +14,8 @@ def main():
     root = Path(__file__).resolve().parent.parent
     parser.add_argument("input", nargs="?", type=Path, default=root / "data" / "downloads")
     parser.add_argument("--output", type=Path, default=root / "data" / "processed" / "merged.csv")
+    parser.add_argument("--from", dest="from_time")
+    parser.add_argument("--to", dest="to_time")
     args = parser.parse_args()
     source = args.input.resolve()
     output_path = args.output.resolve()
@@ -62,8 +65,26 @@ def main():
         writer.writerows(row for _, row in rows)
 
     extracted = sum(bool(row.get("session_id")) for _, row in rows)
-    print(f"Processed {len(rows)} rows from {source.name} into {output_path.name}")
-    print(f"Extracted session_id for {extracted} rows")
+    summary = {
+        "source_csv": str(source),
+        "processed_csv": str(output_path),
+        "from": args.from_time,
+        "to": args.to_time,
+        "timezone": "Asia/Jakarta",
+        "row_count": len(rows),
+        "unique_session_count": len({row["session_id"] for _, row in rows if row["session_id"]}),
+        "rows_with_session_id": extracted,
+        "earliest_time": rows[0][0].isoformat(sep=" ") if rows else None,
+        "latest_time": rows[-1][0].isoformat(sep=" ") if rows else None,
+    }
+    summary_path = output_path.with_name("grafana_summary.json")
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print(f"Grafana: {len(rows)} baris, {summary['unique_session_count']} session unik")
+    print(f"Timestamp CSV: {summary['earliest_time']} -> {summary['latest_time']}")
+    print(f"CSV sumber: {source}")
+    print(f"Ringkasan sementara: {summary_path}")
+    if not rows or not extracted:
+        parser.exit(1, "CSV Grafana kosong atau tanpa session ID. SQL dan matching dihentikan; periksa query, loading, dan rentang Grafana.\n")
 
 
 if __name__ == "__main__":

@@ -96,9 +96,12 @@ Download Grafana CSV and Process Latest File
     Click Element    xpath=//button[normalize-space(.)='Download CSV']
     ${downloaded_csv}=    Wait Until Keyword Succeeds    120s    1s    CSV Download Should Be Complete    ${download_directory}    ${previous_csvs}
     ${python}=    Evaluate    sys.executable    modules=sys
-    ${result}=    Run Process    ${python}    ${CURDIR}${/}..${/}scripts${/}join.py    ${downloaded_csv}    timeout=120s    on_timeout=terminate
+    ${result}=    Run Process    ${python}    ${CURDIR}${/}..${/}scripts${/}join.py    ${downloaded_csv}    --from    ${FROM_TIME}    --to    ${TO_TIME}    timeout=120s    on_timeout=terminate
     Log    ${result.stdout}
     Log To Console    ${result.stdout}
+    IF    ${result.rc} != 0
+        Log To Console    ${result.stderr}
+    END
     Should Be Equal As Integers    ${result.rc}    0    msg=${result.stderr}
     ${range_json}=    Evaluate    json.dumps({'from': $FROM_TIME, 'to': $TO_TIME, 'timezone': 'Asia/Jakarta'})    modules=json
     Create File    ${CURDIR}${/}..${/}data${/}processed${/}time_range.json    ${range_json}
