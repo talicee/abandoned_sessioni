@@ -221,6 +221,61 @@ balasan berikutnya sengaja membaca seluruh riwayat kandidat agar balasan
 API/agent di tanggal lain tetap dikenali. Karena itu timestamp pesan pada
 CSV detail bisa berada di luar rentang pengambilan kandidat.
 
+## Menjalankan beberapa hari, satu hari per proses
+
+Untuk 23 September sampai 21 Oktober 2026:
+
+```sh
+.venv/bin/python -u scripts/run-daily.py \
+  --start-date 2026-09-23 \
+  --end-date 2026-10-21
+```
+
+Runner memanggil workflow lengkap secara **berurutan**, selalu headless,
+untuk satu tanggal pukul **00:00:00 sampai 23:59:59 WIB** sebelum pindah
+ke tanggal berikutnya. Setiap hari memiliki folder output sendiri, sehingga
+hasil hari sebelumnya tidak tertimpa:
+
+```text
+data/daily/2026-09-23/
+  console.log
+  status.json
+  grafana_raw.csv
+  grafana_summary.json
+  merged.csv
+  time_range.json
+  sql_query_results.csv
+  sql_summary.json
+  unmatched_sessions.csv
+  unmatched_session_details.csv
+```
+
+Ringkasan keseluruhan berada di:
+
+```text
+data/daily/summary_2026-09-23_2026-10-21/summary.csv
+data/daily/summary_2026-09-23_2026-10-21/session_ids.csv
+```
+
+`summary.csv` mencatat status dan jumlah baris/session tiap hari serta ID
+akhirnya. `session_ids.csv` berisi ID akhir tanpa duplikat dan tanggal
+kemunculannya. Ringkasan diperbarui setelah setiap hari selesai, sehingga
+bisa dibaca saat runner masih berlangsung.
+
+Hari gagal (termasuk CSV Grafana kosong) ditandai `failed` dan tidak masuk
+rekap ID berhasil. Runner tetap mencoba hari berikutnya dan memberi exit
+code gagal jika ada hari yang belum berhasil. Log tiap hari tersedia untuk
+penelusuran. Jalankan perintah yang sama untuk melanjutkan: hari berstatus
+`success` dilewati, sementara hari gagal dicoba kembali. Hasil sukses
+merupakan snapshot saat dijalankan; untuk memperbarui satu hari yang sudah
+sukses, hapus folder tanggal itu sebelum menjalankan ulang.
+
+Tanpa parameter, tanggal awal adalah 23 September 2026 dan tanggal akhir
+adalah hari ini di WIB. Data tanggal hari ini hanya berisi pesan yang
+sudah tersedia saat proses dijalankan, meskipun batas akhirnya 23:59:59.
+Per hari tidak otomatis menjamin bebas batas baris Loki; periksa jumlah
+baris dan cakupan timestamp pada ringkasan tiap hari.
+
 ## Output files
 
 - `data/downloads/*.csv`: downloaded source CSV files.

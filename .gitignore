@@ -5,6 +5,7 @@ data/downloads/
 data/processed/
 data/sql/
 data/results/
+data/daily/
 reports/robot/
 robot/.grafana-password
 .env
