@@ -134,11 +134,29 @@ normalisasi sebagai string agar nol di depan tidak hilang. Daftar ID
 missing tetap disimpan di CSV. Terminal hanya menampilkan daftar session ID
 yang lolos filter detail UD39, yaitu hasil akhir yang perlu ditindaklanjuti.
 
-Query detail UD39 menerima ID yang sama, lalu menerapkan filter
-`FromType_c = 'API' OR ToType_c = 'API'` dan `TotalRows <= 3`.
-Karena itu, jumlah baris `unmatched_session_details.csv` bisa lebih kecil
-daripada jumlah session yang hilang. Perhitungan `TotalRows` pada tahap
-detail mencakup seluruh riwayat session, bukan hanya rentang unduhan.
+Query detail UD39 memeriksa seluruh riwayat setiap kandidat untuk mencari
+**pesan customer terakhir yang belum mendapat balasan API**:
+
+- Pesan masuk harus `external -> api` dengan `MsgType_c = 'in'`.
+- Ambil pesan masuk terakhir berdasarkan `MsgTime_c`, lalu `MsgID_c` jika waktunya sama.
+- Keluarkan session jika ada pesan `out` dari `api -> external` setelah pesan masuk terakhir.
+- Pesan `system` penutupan otomatis diabaikan. Session tidak harus sudah ditutup.
+- Tidak ada batas jumlah pesan; spam tanpa balasan tetap terdeteksi.
+- Balasan lama tidak menutupi pesan customer baru yang belum terbalas.
+
+`unmatched_session_details.csv` menyimpan satu baris pesan customer terakhir
+yang belum terbalas per session. `TotalRows` hanya informasi jumlah riwayat,
+bukan filter. Query riwayat tidak dibatasi tanggal unduhan, sehingga balasan
+di luar rentang juga diperiksa. Pemeriksaan ini tetap diawali oleh kandidat
+SQL dikurangi Grafana; session di luar kandidat itu tidak diperiksa.
+
+Contoh yang diverifikasi langsung di SQL Server:
+
+| Session | Riwayat | Hasil |
+|---|---|---|
+| `204554` | Ada pesan masuk dan balasan `out` API | Dikeluarkan |
+| `196772` | Pesan masuk, tanpa `out`, lalu ditutup sistem | Nyangkut |
+| `196777` | Dua pesan gambar masuk, tanpa `out`, lalu ditutup sistem | Nyangkut |
 
 Notebook masih menyimpan hasil eksekusi historis. Jalankan ulang selnya
 untuk membandingkan input saat ini. Lihat [hasil penelusuran alur](docs/alur-session.md).
@@ -160,13 +178,13 @@ Grafana dan pemrosesan CSV: PASS
 
 [3/3] Cocokkan session dan ambil detail UD39
 ...
-Session ID hasil akhir (2):
+Session ID hasil akhir (jumlah):
   <session_id_1>
   <session_id_2>
 ```
 
 Daftar ID di terminal berasal dari `Key1` pada hasil detail UD39 setelah
-filter API dan jumlah baris diterapkan. Seluruh session missing sebelum
+pemeriksaan balasan API terhadap pesan customer terakhir diterapkan. Seluruh session missing sebelum
 filter tetap tersedia di `data/results/unmatched_sessions.csv`.
 Banner Robot Framework dan titik progres berulang disembunyikan; error
 serta warning tetap ditampilkan. Log lengkap tersedia di
@@ -181,7 +199,7 @@ tambahkan `--console verbose --consolemarkers off` pada perintah runner.
 - `reports/robot/report.html`: latest Selenium test report.
 - `data/sql/sql_query_results.csv`: SQL session IDs and first/last message times.
 - `data/results/unmatched_sessions.csv`: SQL/Yeastar session IDs missing from Grafana, with `first_msg_time` and `last_msg_time`.
-- `data/results/unmatched_session_details.csv`: SQL details for unmatched sessions.
+- `data/results/unmatched_session_details.csv`: latest unanswered customer message for each abandoned candidate session.
 
 ## Project layout
 

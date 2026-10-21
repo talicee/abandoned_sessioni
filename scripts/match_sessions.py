@@ -34,15 +34,33 @@ WITH AllRows AS (
     WHERE Key5 = ?
       AND Key1 IN ({placeholders})
 ),
-Ranked AS (
+RankedIncoming AS (
     SELECT *,
-           ROW_NUMBER() OVER (PARTITION BY Key1 ORDER BY (SELECT NULL)) AS rn
+           ROW_NUMBER() OVER (
+               PARTITION BY Key1 ORDER BY MsgTime_c DESC, MsgID_c DESC
+           ) AS rn
     FROM AllRows
-    WHERE (FromType_c = 'API' OR ToType_c = 'API')
-      AND TotalRows <= 3
+    WHERE LOWER(FromType_c) = 'external'
+      AND LOWER(ToType_c) = 'api'
+      AND LOWER(MsgType_c) = 'in'
+      AND MsgTime_c IS NOT NULL
 )
-SELECT * FROM Ranked WHERE rn = 1
-ORDER BY Key1;
+SELECT incoming.*
+FROM RankedIncoming AS incoming
+WHERE incoming.rn = 1
+  AND NOT EXISTS (
+      SELECT 1 FROM AllRows AS reply
+      WHERE reply.Key1 = incoming.Key1
+        AND LOWER(reply.FromType_c) = 'api'
+        AND LOWER(reply.ToType_c) = 'external'
+        AND LOWER(reply.MsgType_c) = 'out'
+        AND (
+            reply.MsgTime_c > incoming.MsgTime_c
+            OR (reply.MsgTime_c = incoming.MsgTime_c
+                AND COALESCE(reply.MsgID_c, -1) > COALESCE(incoming.MsgID_c, -1))
+        )
+  )
+ORDER BY incoming.Key1;
 """
 
 
@@ -58,7 +76,7 @@ def read_session_ids(csv_path):
 
 
 def query_unmatched_sessions(session_ids):
-    """Fetch matching UD39 rows for the unmatched IDs, in safe-sized batches."""
+    """Return the latest unanswered customer message for each candidate session."""
     rows = []
     columns = DETAIL_COLUMNS
 

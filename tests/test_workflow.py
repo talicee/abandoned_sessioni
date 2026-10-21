@@ -1,6 +1,7 @@
 import csv
 import json
 import os
+import sqlite3
 from pathlib import Path
 import subprocess
 import sys
@@ -18,6 +19,36 @@ from time_range import resolve_time_range
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_abandoned_query_checks_latest_customer_message_without_message_limit(self):
+        with sqlite3.connect(":memory:") as connection:
+            columns = match_sessions.DETAIL_COLUMNS[:-2]
+            connection.execute("CREATE TABLE UD39 (" + ", ".join(
+                name + (" INTEGER" if name in ("MsgID_c", "RawLoadID_c", "CnvID_c", "MsgTypeCode_c") else " TEXT")
+                for name in columns
+            ) + ")")
+
+            def message(session, number, kind, timestamp=None):
+                source, target = {"in": ("external", "API"), "out": ("API", "external"), "system": ("external", "")}[kind]
+                connection.execute("INSERT INTO UD39 (Key1,Key5,MsgID_c,MsgTime_c,FromType_c,ToType_c,MsgType_c) VALUES (?,?,?,?,?,?,?)",
+                    (session, "ChatMessage", number, timestamp or f"2026-10-20 10:00:{number:02}", source, target, kind))
+
+            message("answered", 1, "in"); message("answered", 2, "out"); message("answered", 3, "system")
+            for number in range(1, 9):
+                message("spam", number, "in")
+            message("followup", 1, "in"); message("followup", 2, "out"); message("followup", 3, "in")
+            message("open", 1, "in")
+            message("systemonly", 1, "system")
+            message("tiesanswered", 1, "in", "2026-10-20 11:00:00")
+            message("tiesanswered", 2, "out", "2026-10-20 11:00:00")
+            message("olderreply", 1, "in", "2026-10-20 12:00:00")
+            message("olderreply", 2, "out", "2026-10-19 12:00:00")
+            candidates = ["answered", "spam", "followup", "open", "systemonly", "tiesanswered", "olderreply"]
+            result = connection.execute(match_sessions.SQL_TEMPLATE.format(placeholders=",".join("?" for _ in candidates)), ["ChatMessage", *candidates]).fetchall()
+            actual = {row[columns.index("Key1")]: row for row in result}
+            self.assertEqual(set(actual), {"spam", "followup", "open", "olderreply"})
+            self.assertEqual(actual["spam"][columns.index("MsgID_c")], 8)
+            self.assertEqual(actual["spam"][-2], 8)
+
     def test_default_range_stays_at_16_wib_before_and_after_cutoff(self):
         for hour in (10, 18):
             start, end = resolve_time_range(now=datetime(2028, 3, 1, hour, tzinfo=ZoneInfo("Asia/Jakarta")))
