@@ -4,7 +4,7 @@ Library    OperatingSystem
 Library    Process
 
 *** Variables ***
-${URL}             https://e.samator.com/one/monitoring/grafana/d/bf5ymm8nzu134b/4-one-service-log?var-env=test
+${URL}             https://e.samator.com/one/monitoring/grafana/d/bf5ymm8nzu134b/4-one-service-log?var-env=prod
 ${BROWSER}         chrome
 ${USERNAME}        admin
 ${PASSWORD}        %{GRAFANA_PASSWORD}
@@ -17,7 +17,7 @@ Set Grafana Time Range
     ${FROM_TIME}=    Evaluate    ($cutoff - datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')    modules=datetime
     ${TO_TIME}=    Evaluate    $cutoff.strftime('%Y-%m-%d %H:%M:%S')
     ${chrome_options}=    Evaluate    __import__('selenium').webdriver.ChromeOptions()
-    ${download_directory}=    Set Variable    ${CURDIR}${/}downloads
+    ${download_directory}=    Normalize Path    ${CURDIR}${/}..${/}data${/}downloads
     Create Directory    ${download_directory}
     ${download_prefs}=    Create Dictionary    download.default_directory=${download_directory}    download.prompt_for_download=${False}    download.directory_upgrade=${True}    safebrowsing.enabled=${True}
     Call Method    ${chrome_options}    add_experimental_option    prefs    ${download_prefs}
@@ -35,12 +35,10 @@ Set Grafana Time Range
 
     Wait Until Location Contains    bf5ymm8nzu134b    timeout=${TIMEOUT}
 
-    # Wait for the dashboard variables to render, then select prod.
+    # The URL selects prod; wait for the dashboard to confirm it.
     ${env_combobox}=    Set Variable    css:[role="combobox"][data-testid^="data-testid Dashboard template variables Variable Value DropDown value link text"]
     Wait Until Element Is Visible    ${env_combobox}    timeout=${TIMEOUT}
-    Click Element    ${env_combobox}
-    Wait Until Element Is Visible    xpath=//*[@role='option' and normalize-space(.)='prod']    timeout=${TIMEOUT}
-    Click Element    xpath=//*[@role='option' and normalize-space(.)='prod']
+    Wait Until Element Contains    ${env_combobox}    prod    timeout=${TIMEOUT}
     # Open the time-range picker after successful login.
     Wait Until Element Is Visible    css:button[data-testid="data-testid TimePicker Open Button"]    timeout=${TIMEOUT}
     Click Element    css:button[data-testid="data-testid TimePicker Open Button"]
@@ -90,7 +88,7 @@ Set Grafana Time Range
     Click Element    xpath=//button[normalize-space(.)='Download CSV']
     ${downloaded_csv}=    Wait Until Keyword Succeeds    120s    1s    CSV Download Should Be Complete    ${download_directory}    ${previous_csvs}
     ${python}=    Evaluate    sys.executable    modules=sys
-    ${result}=    Run Process    ${python}    ${CURDIR}${/}..${/}join.py    ${downloaded_csv}    timeout=120s    on_timeout=terminate
+    ${result}=    Run Process    ${python}    ${CURDIR}${/}..${/}scripts${/}join.py    ${downloaded_csv}    timeout=120s    on_timeout=terminate
     Log    ${result.stdout}
     Should Be Equal As Integers    ${result.rc}    0    msg=${result.stderr}
 
@@ -116,13 +114,3 @@ CSV Download Should Be Complete
     END
     ${filename}=    Evaluate    next(iter($new_csvs))
     RETURN    ${directory}${/}${filename}
-
-
-
-
-
-
-
-
-
-

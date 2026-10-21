@@ -1,5 +1,14 @@
 .venv/
-robot/results/
-robot/downloads/
 .selenium-cache/
+data/downloads/
+data/processed/
+data/sql/
+data/results/
+reports/robot/
 robot/.grafana-password
+.env
+.env.*
+.env copy
+!.env.example
+__pycache__/
+*.py[cod]

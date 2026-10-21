@@ -10,12 +10,14 @@ SESSION_ID_PATTERN = re.compile(r'session_id[^0-9]*([0-9]+)')
 
 def main():
     parser = argparse.ArgumentParser(description="Process the latest Grafana CSV and extract session IDs.")
-    parser.add_argument("input", nargs="?", type=Path, default=Path(__file__).resolve().parent / "robot" / "downloads")
-    source = parser.parse_args().input.resolve()
-    folder = source if source.is_dir() else source.parent
-    output_path = folder / "merged.csv"
+    root = Path(__file__).resolve().parent.parent
+    parser.add_argument("input", nargs="?", type=Path, default=root / "data" / "downloads")
+    parser.add_argument("--output", type=Path, default=root / "data" / "processed" / "merged.csv")
+    args = parser.parse_args()
+    source = args.input.resolve()
+    output_path = args.output.resolve()
     if source.is_dir():
-        candidates = [path for path in source.glob("*.csv") if path != output_path]
+        candidates = [path for path in source.glob("*.csv") if path != output_path and path.name != "merged.csv"]
         if not candidates:
             raise FileNotFoundError("No input CSV files found")
         source = max(candidates, key=lambda path: path.stat().st_mtime_ns)
@@ -53,6 +55,7 @@ def main():
 
     fieldnames.append("session_id")
     rows.sort(key=lambda item: item[0])
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8-sig") as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()

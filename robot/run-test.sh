@@ -10,4 +10,4 @@ if [ -z "${GRAFANA_PASSWORD:-}" ] && [ -f robot/.grafana-password ]; then
     GRAFANA_PASSWORD=$(cat robot/.grafana-password)
     export GRAFANA_PASSWORD
 fi
-.venv/bin/robot --outputdir robot/results robot/test.robot
+.venv/bin/robot --outputdir reports/robot "$@" robot/test.robot
