@@ -36,9 +36,7 @@ Set Grafana Time Range
     Wait Until Location Contains    bf5ymm8nzu134b    timeout=${TIMEOUT}
 
     # The URL selects prod; wait for the dashboard to confirm it.
-    ${env_combobox}=    Set Variable    css:[role="combobox"][data-testid^="data-testid Dashboard template variables Variable Value DropDown value link text"]
-    Wait Until Element Is Visible    ${env_combobox}    timeout=${TIMEOUT}
-    Wait Until Element Contains    ${env_combobox}    prod    timeout=${TIMEOUT}
+    Wait Until Element Is Visible    xpath=//*[@data-testid='data-testid header-container'][contains(normalize-space(.),'Console Log (prod)')]    timeout=${TIMEOUT}
     # Open the time-range picker after successful login.
     Wait Until Element Is Visible    css:button[data-testid="data-testid TimePicker Open Button"]    timeout=${TIMEOUT}
     Click Element    css:button[data-testid="data-testid TimePicker Open Button"]
