@@ -51,7 +51,7 @@ WHERE incoming.rn = 1
   AND NOT EXISTS (
       SELECT 1 FROM AllRows AS reply
       WHERE reply.Key1 = incoming.Key1
-        AND LOWER(reply.FromType_c) = 'api'
+        AND LOWER(reply.FromType_c) IN ('api', 'extension')
         AND LOWER(reply.ToType_c) = 'external'
         AND LOWER(reply.MsgType_c) = 'out'
         AND (

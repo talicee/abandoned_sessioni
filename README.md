@@ -135,11 +135,12 @@ missing tetap disimpan di CSV. Terminal hanya menampilkan daftar session ID
 yang lolos filter detail UD39, yaitu hasil akhir yang perlu ditindaklanjuti.
 
 Query detail UD39 memeriksa seluruh riwayat setiap kandidat untuk mencari
-**pesan customer terakhir yang belum mendapat balasan API**:
+**pesan customer terakhir yang belum mendapat balasan API atau agent**:
 
 - Pesan masuk harus `external -> api` dengan `MsgType_c = 'in'`.
 - Ambil pesan masuk terakhir berdasarkan `MsgTime_c`, lalu `MsgID_c` jika waktunya sama.
-- Keluarkan session jika ada pesan `out` dari `api -> external` setelah pesan masuk terakhir.
+- Keluarkan session jika ada pesan `out` dari `api -> external` **atau**
+  `extension -> external` setelah pesan masuk terakhir.
 - Pesan `system` penutupan otomatis diabaikan. Session tidak harus sudah ditutup.
 - Tidak ada batas jumlah pesan; spam tanpa balasan tetap terdeteksi.
 - Balasan lama tidak menutupi pesan customer baru yang belum terbalas.
@@ -155,6 +156,7 @@ Contoh yang diverifikasi langsung di SQL Server:
 | Session | Riwayat | Hasil |
 |---|---|---|
 | `204554` | Ada pesan masuk dan balasan `out` API | Dikeluarkan |
+| `205111` | API meneruskan ke agent, lalu agent membalas `out` | Dikeluarkan |
 | `196772` | Pesan masuk, tanpa `out`, lalu ditutup sistem | Nyangkut |
 | `196777` | Dua pesan gambar masuk, tanpa `out`, lalu ditutup sistem | Nyangkut |
 
@@ -184,7 +186,7 @@ Session ID hasil akhir (jumlah):
 ```
 
 Daftar ID di terminal berasal dari `Key1` pada hasil detail UD39 setelah
-pemeriksaan balasan API terhadap pesan customer terakhir diterapkan. Seluruh session missing sebelum
+pemeriksaan balasan API atau extension terhadap pesan customer terakhir diterapkan. Seluruh session missing sebelum
 filter tetap tersedia di `data/results/unmatched_sessions.csv`.
 Banner Robot Framework dan titik progres berulang disembunyikan; error
 serta warning tetap ditampilkan. Log lengkap tersedia di

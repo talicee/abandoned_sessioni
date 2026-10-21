@@ -106,3 +106,15 @@ sehingga terlewat oleh filter lama. Session 204554 tidak lagi masuk hasil.
 Hasil query diverifikasi lagi dengan membaca riwayat mentah dari SQL lalu
 menghitung urutan pesan secara independen di Python; seluruh 19 ID sama.
 Kedelapan tes lokal lulus.
+
+## Balasan agent juga dihitung
+
+Session 205111 sebelumnya terdeteksi karena balasannya berasal dari
+`extension`, bukan `api`. Keduanya sekarang dihitung sebagai balasan valid:
+`MsgType_c = out`, tujuan `external`, dan pengirim `api` atau `extension`,
+dengan urutan setelah pesan customer terakhir ke API. Balasan agent lama
+tidak menutupi pesan customer baru yang belum dibalas.
+
+Verifikasi SQL langsung mencakup 205111 dan 204554 yang harus tersaring,
+serta 196772 dan 196777 yang harus tetap masuk. Uji regresi mencakup
+balasan extension dan pesan customer baru setelah balasan extension.

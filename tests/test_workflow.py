@@ -27,8 +27,9 @@ class WorkflowTests(unittest.TestCase):
                 for name in columns
             ) + ")")
 
-            def message(session, number, kind, timestamp=None):
+            def message(session, number, kind, timestamp=None, sender=None):
                 source, target = {"in": ("external", "API"), "out": ("API", "external"), "system": ("external", "")}[kind]
+                source = sender or source
                 connection.execute("INSERT INTO UD39 (Key1,Key5,MsgID_c,MsgTime_c,FromType_c,ToType_c,MsgType_c) VALUES (?,?,?,?,?,?,?)",
                     (session, "ChatMessage", number, timestamp or f"2026-10-20 10:00:{number:02}", source, target, kind))
 
@@ -42,10 +43,15 @@ class WorkflowTests(unittest.TestCase):
             message("tiesanswered", 2, "out", "2026-10-20 11:00:00")
             message("olderreply", 1, "in", "2026-10-20 12:00:00")
             message("olderreply", 2, "out", "2026-10-19 12:00:00")
-            candidates = ["answered", "spam", "followup", "open", "systemonly", "tiesanswered", "olderreply"]
+            message("agentanswered", 1, "in")
+            message("agentanswered", 2, "out", sender="extension")
+            message("agentfollowup", 1, "in")
+            message("agentfollowup", 2, "out", sender="extension")
+            message("agentfollowup", 3, "in")
+            candidates = ["answered", "spam", "followup", "open", "systemonly", "tiesanswered", "olderreply", "agentanswered", "agentfollowup"]
             result = connection.execute(match_sessions.SQL_TEMPLATE.format(placeholders=",".join("?" for _ in candidates)), ["ChatMessage", *candidates]).fetchall()
             actual = {row[columns.index("Key1")]: row for row in result}
-            self.assertEqual(set(actual), {"spam", "followup", "open", "olderreply"})
+            self.assertEqual(set(actual), {"spam", "followup", "open", "olderreply", "agentfollowup"})
             self.assertEqual(actual["spam"][columns.index("MsgID_c")], 8)
             self.assertEqual(actual["spam"][-2], 8)
 
