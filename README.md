@@ -22,28 +22,46 @@ Keep real credentials local; `.env` is ignored by Git.
 Run after 16:00 WIB to collect a complete daily period:
 
 ```sh
-bash robot/run-test.sh
-.venv/bin/python scripts/sql_server.py
-.venv/bin/python scripts/match_sessions.py
+bash scripts/run-workflow.sh
 ```
 
-Run these commands in order, on the same day. Selenium selects yesterday
+The runner stops if any step fails. Selenium selects yesterday
 16:00 through today 16:00 in Grafana, waits for the CSV download, and runs
 `scripts/join.py` on that specific download. `data/processed/merged.csv` is replaced
 on each run; older downloads are not combined. Running before 16:00 still
 selects today's 16:00 cutoff, so today's data will be incomplete.
 
-The SQL query uses yesterday 16:00 (inclusive) through today 16:00
-(exclusive), calculated in Asia/Jakarta. This assumes `MsgTime_c` stores
-local WIB timestamps. `scripts/match_sessions.py` compares the downloaded session
+Selenium checks the applied Grafana URL against the requested timestamps,
+then saves the exact selected start/end values to
+`data/processed/time_range.json`. The SQL query reads that file and uses
+the same start/end bounds, both inclusive. It does not calculate its own
+dates, even when SQL runs on a different day. This assumes `MsgTime_c`
+stores local WIB timestamps. `scripts/match_sessions.py` compares the downloaded session
 IDs with the SQL results and queries details for unmatched sessions.
-The SQL steps are run separately; the Selenium script does not connect to
-SQL Server automatically.
+The full runner automatically runs `scripts/sql_server.py`, followed by
+`scripts/match_sessions.py`. To run only the browser, use
+`bash robot/run-test.sh`. SQL and matching can also be run separately:
+
+```sh
+.venv/bin/python scripts/sql_server.py
+.venv/bin/python scripts/match_sessions.py
+```
+
+The browser must finish successfully first to create both `merged.csv`
+and `time_range.json`. For a run without a visible browser window, use
+`bash scripts/run-workflow.sh --variable BROWSER:headlesschrome`.
+
+Both SQL scripts share one connection setup and a 15-second connection
+timeout. On this Mac, the verified Microsoft driver is installed locally
+under `.odbc-driver/`; the connection setup automatically uses its ODBC
+configuration when present. This folder is ignored by Git. Other machines
+need their own SQL Server ODBC driver installation matching `DB_DRIVER`.
 
 ## Output files
 
 - `data/downloads/*.csv`: downloaded source CSV files.
 - `data/processed/merged.csv`: processed latest download, with `session_id`.
+- `data/processed/time_range.json`: exact Grafana start/end and timezone used by SQL.
 - `reports/robot/report.html`: latest Selenium test report.
 - `data/sql/sql_query_results.csv`: SQL session IDs and first/last message times.
 - `data/results/unmatched_sessions.csv`: unmatched session IDs and their counts.

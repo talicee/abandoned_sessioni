@@ -1,5 +1,6 @@
 .venv/
 .selenium-cache/
+.odbc-driver/
 data/downloads/
 data/processed/
 data/sql/

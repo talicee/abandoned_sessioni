@@ -1,4 +1,5 @@
 import csv
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -30,21 +31,32 @@ class WorkflowTests(unittest.TestCase):
                 self.assertEqual(len(rows), 1)
                 self.assertEqual(rows[0]["session_id"], expected)
 
-    def test_sql_uses_daily_wib_window(self):
+    def test_sql_uses_exact_saved_grafana_window(self):
         with tempfile.TemporaryDirectory() as tmp:
             connection = MagicMock()
             cursor = connection.__enter__.return_value.cursor.return_value
             cursor.description = [("session_id",), ("first_msg_time",), ("last_msg_time",)]
             cursor.fetchall.return_value = []
             env = {key: "test" for key in ("DB_DRIVER", "DB_SERVER", "DB_DATABASE", "DB_USERNAME", "DB_PASSWORD")}
-            with patch.dict(os.environ, env), patch.object(sql_server, "load_env_file"), patch.object(sql_server.pyodbc, "connect", return_value=connection), patch.object(sql_server, "OUTPUT_FILE", Path(tmp) / "sql/results.csv"):
+            range_file = Path(tmp) / "time_range.json"
+            range_file.write_text(json.dumps({"from": "2028-02-29 16:00:00", "to": "2028-03-01 16:00:00", "timezone": "Asia/Jakarta"}))
+            with patch.dict(os.environ, env), patch.object(sql_server, "TIME_RANGE_FILE", range_file), patch.object(sql_server, "load_env_file"), patch.object(sql_server.pyodbc, "connect", return_value=connection), patch.object(sql_server, "OUTPUT_FILE", Path(tmp) / "sql/results.csv"):
                 sql_server.main()
             query, kind, start, end = cursor.execute.call_args.args
             self.assertEqual(kind, "ChatMessage")
             self.assertEqual(end - start, timedelta(days=1))
             self.assertEqual(end.strftime("%H:%M:%S"), "16:00:00")
+            self.assertEqual(start.isoformat(sep=" "), "2028-02-29 16:00:00")
+            self.assertEqual(end.isoformat(sep=" "), "2028-03-01 16:00:00")
             self.assertIn("MsgTime_c >= ?", query)
-            self.assertIn("MsgTime_c < ?", query)
+            self.assertIn("MsgTime_c <= ?", query)
+
+    def test_sql_requires_saved_grafana_window_before_connecting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(sql_server, "TIME_RANGE_FILE", Path(tmp) / "missing.json"), patch.object(sql_server, "make_connection") as connect:
+                with self.assertRaises(FileNotFoundError):
+                    sql_server.main()
+                connect.assert_not_called()
 
     def test_matching_uses_latest_processed_csv_and_preserves_id_strings(self):
         self.assertEqual(match_sessions.MERGED_CSV, ROOT / "data/processed/merged.csv")

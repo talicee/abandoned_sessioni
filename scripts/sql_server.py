@@ -1,8 +1,8 @@
 ﻿import csv
 import os
-from datetime import datetime, timedelta
+import json
+from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pyodbc
 
@@ -10,6 +10,7 @@ import pyodbc
 BASE_DIR = Path(__file__).resolve().parent.parent
 ENV_FILE = BASE_DIR / ".env"
 OUTPUT_FILE = BASE_DIR / "data" / "sql" / "sql_query_results.csv"
+TIME_RANGE_FILE = BASE_DIR / "data" / "processed" / "time_range.json"
 
 
 def load_env_file(path):
@@ -44,8 +45,11 @@ def odbc_value(value):
     return "{" + value.replace("}", "}}") + "}"
 
 
-def main():
+def make_connection():
     load_env_file(ENV_FILE)
+    local_driver_config = BASE_DIR / ".odbc-driver" / "odbcinst.ini"
+    if local_driver_config.is_file():
+        os.environ.setdefault("ODBCSYSINI", str(local_driver_config.parent))
 
     required = ("DB_DRIVER", "DB_SERVER", "DB_DATABASE", "DB_USERNAME", "DB_PASSWORD")
     missing = [name for name in required if not os.getenv(name)]
@@ -63,7 +67,17 @@ def main():
             "TrustServerCertificate=yes",
         )
     )
+    return pyodbc.connect(connection_string, timeout=15)
 
+
+def main():
+    time_range = json.loads(TIME_RANGE_FILE.read_text(encoding="utf-8"))
+    if time_range["timezone"] != "Asia/Jakarta":
+        raise ValueError("Grafana time range must use Asia/Jakarta")
+    start = datetime.strptime(time_range["from"], "%Y-%m-%d %H:%M:%S")
+    cutoff = datetime.strptime(time_range["to"], "%Y-%m-%d %H:%M:%S")
+    if start >= cutoff:
+        raise ValueError("Grafana start time must be earlier than end time")
     query = """
         SELECT  Key1 AS session_id,
                 MIN(MsgTime_c) AS first_msg_time,
@@ -71,17 +85,13 @@ def main():
         FROM    UD39
         WHERE   Key5 = ?
           AND   MsgTime_c >= ?
-          AND   MsgTime_c < ?
+          AND   MsgTime_c <= ?
         GROUP BY Key1
         ORDER BY first_msg_time;
     """
 
-    with pyodbc.connect(connection_string) as connection:
+    with make_connection() as connection:
         cursor = connection.cursor()
-        cutoff = datetime.now(ZoneInfo("Asia/Jakarta")).replace(
-            hour=16, minute=0, second=0, microsecond=0, tzinfo=None
-        )
-        start = cutoff - timedelta(days=1)
         cursor.execute(query, "ChatMessage", start, cutoff)
         columns = [column[0] for column in cursor.description]
         rows = cursor.fetchall()
@@ -94,7 +104,7 @@ def main():
         writer.writerows(rows)
 
     print(f"Saved {len(rows)} rows to {OUTPUT_FILE}")
-    print(f"SQL time range (WIB): {start} to {cutoff} (exclusive)")
+    print(f"SQL time range (WIB): {start} to {cutoff} (inclusive, from Grafana)")
 
 
 if __name__ == "__main__":

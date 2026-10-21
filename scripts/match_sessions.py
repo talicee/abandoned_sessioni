@@ -1,11 +1,9 @@
 ﻿import csv
-import os
 from pathlib import Path
 
 import pandas as pd
-import pyodbc
 
-from sql_server import ENV_FILE, load_env_file, odbc_value
+from sql_server import make_connection
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -57,28 +55,6 @@ def read_session_ids(csv_path):
     )
     session_ids = frame["session_id"].dropna().str.strip()
     return session_ids[session_ids != ""]
-
-
-def make_connection():
-    load_env_file(ENV_FILE)
-    required = ("DB_DRIVER", "DB_SERVER", "DB_DATABASE", "DB_USERNAME", "DB_PASSWORD")
-    missing = [name for name in required if not os.environ.get(name)]
-    if missing:
-        raise RuntimeError("Missing required .env values: " + ", ".join(missing))
-
-
-    connection_string = ";".join(
-        (
-            f"DRIVER={odbc_value(os.environ['DB_DRIVER'])}",
-            f"SERVER={odbc_value(os.environ['DB_SERVER'])}",
-            f"DATABASE={odbc_value(os.environ['DB_DATABASE'])}",
-            f"UID={odbc_value(os.environ['DB_USERNAME'])}",
-            f"PWD={odbc_value(os.environ['DB_PASSWORD'])}",
-            "Encrypt=yes",
-            "TrustServerCertificate=yes",
-        )
-    )
-    return pyodbc.connect(connection_string)
 
 
 def query_unmatched_sessions(session_ids):

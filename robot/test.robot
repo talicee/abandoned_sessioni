@@ -51,6 +51,9 @@ Set Grafana Time Range
     Wait Until Element Is Enabled    css:button[data-testid="data-testid TimePicker submit button"]    timeout=${TIMEOUT}
     Click Element    css:button[data-testid="data-testid TimePicker submit button"]
     Wait Until Page Contains    ${FROM_TIME}    timeout=${TIMEOUT}
+    ${expected_from}=    Evaluate    str(int(($cutoff - datetime.timedelta(days=1)).timestamp() * 1000))    modules=datetime
+    ${expected_to}=    Evaluate    str(int($cutoff.timestamp() * 1000))
+    Wait Until Keyword Succeeds    10s    500ms    Grafana Range Should Match    ${expected_from}    ${expected_to}
     # Hover over the Console Log panel header to reveal its controls.
     Wait Until Element Is Visible    xpath=//*[@data-testid='data-testid header-container'][contains(normalize-space(.),'Console Log')]    timeout=${TIMEOUT}
     Mouse Over    xpath=//*[@data-testid='data-testid header-container'][contains(normalize-space(.),'Console Log')]
@@ -89,8 +92,19 @@ Set Grafana Time Range
     ${result}=    Run Process    ${python}    ${CURDIR}${/}..${/}scripts${/}join.py    ${downloaded_csv}    timeout=120s    on_timeout=terminate
     Log    ${result.stdout}
     Should Be Equal As Integers    ${result.rc}    0    msg=${result.stderr}
+    ${range_json}=    Evaluate    json.dumps({'from': $FROM_TIME, 'to': $TO_TIME, 'timezone': 'Asia/Jakarta'})    modules=json
+    Create File    ${CURDIR}${/}..${/}data${/}processed${/}time_range.json    ${range_json}
 
 *** Keywords ***
+Grafana Range Should Match
+    [Arguments]    ${expected_from}    ${expected_to}
+    ${location}=    Get Location
+    ${query}=    Evaluate    urllib.parse.parse_qs(urllib.parse.urlparse($location).query)    modules=urllib.parse
+    ${actual_from}=    Evaluate    str(int(datetime.datetime.fromisoformat($query['from'][0].replace('Z', '+00:00')).timestamp() * 1000)) if not $query['from'][0].isdigit() else $query['from'][0]    modules=datetime
+    ${actual_to}=    Evaluate    str(int(datetime.datetime.fromisoformat($query['to'][0].replace('Z', '+00:00')).timestamp() * 1000)) if not $query['to'][0].isdigit() else $query['to'][0]    modules=datetime
+    Should Be Equal    ${actual_from}    ${expected_from}
+    Should Be Equal    ${actual_to}    ${expected_to}
+
 Open Inspect Submenu Item
     [Arguments]    ${item}
     Mouse Over    css:[data-testid="data-testid Panel menu item Inspect"]
