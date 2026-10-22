@@ -49,6 +49,13 @@ SELECT incoming.*
 FROM RankedIncoming AS incoming
 WHERE incoming.rn = 1
   AND NOT EXISTS (
+      SELECT 1 FROM AllRows AS pickup
+      WHERE pickup.Key1 = incoming.Key1
+        AND LOWER(pickup.FromType_c) = 'extension'
+        AND LOWER(pickup.MsgType_c) = 'system'
+        AND pickup.MsgTypeCode_c = 5
+  )
+  AND NOT EXISTS (
       SELECT 1 FROM AllRows AS reply
       WHERE reply.Key1 = incoming.Key1
         AND LOWER(reply.FromType_c) IN ('api', 'extension')

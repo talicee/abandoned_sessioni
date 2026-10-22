@@ -27,11 +27,11 @@ class WorkflowTests(unittest.TestCase):
                 for name in columns
             ) + ")")
 
-            def message(session, number, kind, timestamp=None, sender=None):
+            def message(session, number, kind, timestamp=None, sender=None, code=0):
                 source, target = {"in": ("external", "API"), "out": ("API", "external"), "system": ("external", "")}[kind]
                 source = sender or source
-                connection.execute("INSERT INTO UD39 (Key1,Key5,MsgID_c,MsgTime_c,FromType_c,ToType_c,MsgType_c) VALUES (?,?,?,?,?,?,?)",
-                    (session, "ChatMessage", number, timestamp or f"2026-10-20 10:00:{number:02}", source, target, kind))
+                connection.execute("INSERT INTO UD39 (Key1,Key5,MsgID_c,MsgTime_c,FromType_c,ToType_c,MsgType_c,MsgTypeCode_c) VALUES (?,?,?,?,?,?,?,?)",
+                    (session, "ChatMessage", number, timestamp or f"2026-10-20 10:00:{number:02}", source, target, kind, code))
 
             message("answered", 1, "in"); message("answered", 2, "out"); message("answered", 3, "system")
             for number in range(1, 9):
@@ -49,9 +49,16 @@ class WorkflowTests(unittest.TestCase):
             message("agentfollowup", 2, "out", sender="extension")
             message("agentfollowup", 3, "in")
             candidates = ["answered", "spam", "followup", "open", "systemonly", "tiesanswered", "olderreply", "agentanswered", "agentfollowup"]
+            message("pickedup", 1, "in")
+            message("pickedup", 2, "system", sender="extension", code=5)
+            message("pickupbefore", 1, "system", sender="extension", code=5)
+            message("pickupbefore", 2, "in")
+            message("queueonly", 1, "in")
+            message("queueonly", 2, "system", sender="API", code=6)
+            candidates.extend(["pickedup", "pickupbefore", "queueonly"])
             result = connection.execute(match_sessions.SQL_TEMPLATE.format(placeholders=",".join("?" for _ in candidates)), ["ChatMessage", *candidates]).fetchall()
             actual = {row[columns.index("Key1")]: row for row in result}
-            self.assertEqual(set(actual), {"spam", "followup", "open", "olderreply", "agentfollowup"})
+            self.assertEqual(set(actual), {"spam", "followup", "open", "olderreply", "agentfollowup", "queueonly"})
             self.assertEqual(actual["spam"][columns.index("MsgID_c")], 8)
             self.assertEqual(actual["spam"][-2], 8)
 

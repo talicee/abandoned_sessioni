@@ -118,3 +118,15 @@ tidak menutupi pesan customer baru yang belum dibalas.
 Verifikasi SQL langsung mencakup 205111 dan 204554 yang harus tersaring,
 serta 196772 dan 196777 yang harus tetap masuk. Uji regresi mencakup
 balasan extension dan pesan customer baru setelah balasan extension.
+
+## Pengecualian session yang pernah di-pickup agent
+
+Session kini juga dikeluarkan jika ada event `extension`, `system`, kode `5`
+di bagian mana pun pada riwayatnya. Tidak diperlukan balasan `out` untuk
+pengecualian pickup. Transfer API ke antrean dengan kode `6` saja tidak cukup.
+SQL Server langsung digunakan untuk memverifikasi 201420 keluar dan
+196772/196777 tetap masuk. Tes juga mencakup pickup sebelum pesan masuk terakhir.
+
+Rekap 13 ID historis dibuat sebelum aturan pickup ini. Rekap tersebut belum
+dihitung ulang; cache harian sekarang memeriksa hash aturan matching dan
+tidak menggunakan hasil aturan lama saat runner dijalankan lagi.

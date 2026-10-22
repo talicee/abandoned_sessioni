@@ -3,6 +3,7 @@ import argparse
 import csv
 from datetime import date, datetime, timedelta
 import json
+import hashlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -10,6 +11,10 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
 DAILY = ROOT / "data" / "daily"
+
+
+def matching_rule_hash():
+    return hashlib.sha256((ROOT / "scripts" / "match_sessions.py").read_bytes()).hexdigest()
 
 
 def summarize(records, output):
@@ -38,11 +43,12 @@ def csv_rows(path):
 
 
 def run_day(day):
+    rule_hash = matching_rule_hash()
     folder = DAILY / day.isoformat()
     status_file = folder / "status.json"
     if status_file.exists():
         saved = json.loads(status_file.read_text())
-        if saved.get("status") in ("success", "verified_empty"):
+        if saved.get("status") in ("success", "verified_empty") and saved.get("matching_rule_hash") == rule_hash:
             print(f"{day}: memakai hasil tersimpan ({saved['status']}).", flush=True)
             return saved
     folder.mkdir(parents=True, exist_ok=True)
@@ -61,7 +67,7 @@ def run_day(day):
         source = ROOT / "reports" / "robot" / name
         if source.is_file() and source.stat().st_mtime >= started_at:
             shutil.copy2(source, folder / name)
-    record = {"date": str(day), "status": "success" if returncode == 0 else "failed", "command": command}
+    record = {"date": str(day), "status": "success" if returncode == 0 else "failed", "command": command, "matching_rule_hash": rule_hash}
     for relative in ["processed/grafana_summary.json", "sql/sql_summary.json"]:
         source = ROOT / "data" / relative
         if source.exists():

@@ -14,6 +14,11 @@ spec.loader.exec_module(daily)
 
 
 class DailyTests(unittest.TestCase):
+    def setUp(self):
+        rule_hash = patch.object(daily, "matching_rule_hash", return_value="test-rules")
+        rule_hash.start()
+        self.addCleanup(rule_hash.stop)
+
     def test_summary_deduplicates_ids_and_keeps_failed_days_explicit(self):
         with tempfile.TemporaryDirectory() as tmp:
             records = [
@@ -31,7 +36,7 @@ class DailyTests(unittest.TestCase):
             folder = Path(tmp) / "2026-09-23"
             folder.mkdir()
             for status in ("success", "verified_empty"):
-                record = {"date": "2026-09-23", "status": status, "session_ids": "001" if status == "success" else ""}
+                record = {"date": "2026-09-23", "status": status, "session_ids": "001" if status == "success" else "", "matching_rule_hash": "test-rules"}
                 (folder / "status.json").write_text(json.dumps(record))
                 with patch.object(daily, "DAILY", Path(tmp)), patch.object(daily.subprocess, "Popen") as process:
                     self.assertEqual(daily.run_day(date(2026, 9, 23)), record)
@@ -51,6 +56,9 @@ class DailyTests(unittest.TestCase):
             process.__enter__.return_value = process
             process.stdout = iter(["Grafana empty\n"])
             process.wait.return_value = 1
+            cached = root / "data/daily/2026-09-23"
+            cached.mkdir(parents=True)
+            (cached / "status.json").write_text(json.dumps({"date": "2026-09-23", "status": "success", "matching_rule_hash": "old-rules"}))
             with patch.object(daily, "ROOT", root), patch.object(daily, "DAILY", root / "data/daily"), patch.object(daily.subprocess, "Popen", return_value=process):
                 record = daily.run_day(date(2026, 9, 23))
             self.assertEqual(record["status"], "failed")

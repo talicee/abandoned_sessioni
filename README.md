@@ -141,6 +141,10 @@ Query detail UD39 memeriksa seluruh riwayat setiap kandidat untuk mencari
 - Ambil pesan masuk terakhir berdasarkan `MsgTime_c`, lalu `MsgID_c` jika waktunya sama.
 - Keluarkan session jika ada pesan `out` dari `api -> external` **atau**
   `extension -> external` setelah pesan masuk terakhir.
+- Keluarkan session jika **pernah di-pickup agent** pada titik mana pun
+  dalam riwayatnya: `FromType_c = extension`, `MsgType_c = system`,
+  `MsgTypeCode_c = 5`. Pickup sebelum pesan customer terakhir juga mengecualikan session.
+- Transfer API ke antrean (kode `6`) saja tidak mengecualikan session.
 - Pesan `system` penutupan otomatis diabaikan. Session tidak harus sudah ditutup.
 - Tidak ada batas jumlah pesan; spam tanpa balasan tetap terdeteksi.
 - Balasan lama tidak menutupi pesan customer baru yang belum terbalas.
@@ -157,6 +161,7 @@ Contoh yang diverifikasi langsung di SQL Server:
 |---|---|---|
 | `204554` | Ada pesan masuk dan balasan `out` API | Dikeluarkan |
 | `205111` | API meneruskan ke agent, lalu agent membalas `out` | Dikeluarkan |
+| `201420` | Agent pickup dengan kode `5`, walaupun tidak ada `out` | Dikeluarkan |
 | `196772` | Pesan masuk, tanpa `out`, lalu ditutup sistem | Nyangkut |
 | `196777` | Dua pesan gambar masuk, tanpa `out`, lalu ditutup sistem | Nyangkut |
 
@@ -268,7 +273,10 @@ Hari gagal (termasuk CSV Grafana kosong) ditandai `failed` dan tidak masuk
 rekap ID berhasil. Runner tetap mencoba hari berikutnya dan memberi exit
 code gagal jika ada hari yang belum berhasil. Log tiap hari tersedia untuk
 penelusuran. Laporan Robot yang baru dibuat ikut disalin ke folder tanggal itu. Jalankan perintah yang sama untuk melanjutkan: hari berstatus
-`success` dilewati, sementara hari gagal dicoba kembali. Hasil sukses
+`success` dilewati jika aturan matching sama, sementara hari gagal dicoba kembali.
+Hash aturan matching disimpan di `status.json`; perubahan aturan membuat
+cache lama tidak dipakai dan hari tersebut diproses ulang. Rekap yang sudah
+tersimpan tetap merupakan snapshot lama sampai runner dijalankan ulang. Hasil sukses
 merupakan snapshot saat dijalankan; untuk memperbarui satu hari yang sudah
 sukses, hapus folder tanggal itu sebelum menjalankan ulang.
 
