@@ -1,4 +1,4 @@
-﻿#
+#
 
 import csv
 import re
@@ -79,12 +79,12 @@ def main():
     }
     summary_path = output_path.with_name("grafana_summary.json")
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    print(f"Grafana: {len(rows)} baris, {summary['unique_session_count']} session unik")
-    print(f"Timestamp CSV: {summary['earliest_time']} -> {summary['latest_time']}")
-    print(f"CSV sumber: {source}")
-    print(f"Ringkasan sementara: {summary_path}")
+    print(f"Grafana rows: {len(rows)}; {summary['unique_session_count']} unique sessions")
+    print(f"CSV timestamps: {summary['earliest_time']} -> {summary['latest_time']}")
+    print(f"Source CSV: {source}")
+    print(f"Temporary summary: {summary_path}")
     if not rows or not extracted:
-        parser.exit(1, "CSV Grafana kosong atau tanpa session ID. SQL dan matching dihentikan; periksa query, loading, dan rentang Grafana.\n")
+        parser.exit(1, "The Grafana CSV is empty or has no session IDs. SQL and matching stopped; check the query, loading status, and Grafana time range.\n")
 
 
 if __name__ == "__main__":

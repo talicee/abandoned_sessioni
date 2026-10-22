@@ -95,7 +95,7 @@ class WorkflowTests(unittest.TestCase):
                 summary = json.loads((output.parent / "grafana_summary.json").read_text())
                 self.assertEqual(summary["row_count"], 1)
                 self.assertEqual(summary["unique_session_count"], 1)
-                self.assertIn("Grafana: 1 baris", result.stdout)
+                self.assertIn("Grafana rows: 1", result.stdout)
 
     def test_empty_grafana_download_saves_zero_count_and_stops(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -159,7 +159,7 @@ class WorkflowTests(unittest.TestCase):
             with patch.object(match_sessions, "MERGED_CSV", merged), patch.object(match_sessions, "SQL_RESULTS_CSV", sql), patch.object(match_sessions, "UNMATCHED_CSV", unmatched), patch.object(match_sessions, "DETAILS_CSV", details), patch.object(match_sessions, "query_unmatched_sessions", return_value=(["Key1"], [("003",)])) as query, patch("builtins.print") as output:
                 match_sessions.main()
             query.assert_called_once_with(["003", "004"])
-            output.assert_any_call("Session ID hasil akhir (1):")
+            output.assert_any_call("Final session IDs (1):")
             self.assertNotIn(unittest.mock.call("  004"), output.call_args_list)
             output.assert_any_call("  003")
             with unmatched.open(encoding="utf-8-sig", newline="") as file:

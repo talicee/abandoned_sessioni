@@ -6,7 +6,7 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         --from|--to)
             if [ "$#" -lt 2 ] || [ -z "$2" ]; then
-                printf 'Parameter %s perlu nilai "YYYY-MM-DD HH:MM:SS".\n' "$1" >&2
+                printf 'Parameter %s requires a "YYYY-MM-DD HH:MM:SS" value.\n' "$1" >&2
                 exit 2
             fi
             if [ "$1" = --from ]; then
@@ -29,7 +29,7 @@ if [ -z "${GRAFANA_PASSWORD:-}" ] && [ -f robot/.grafana-password ]; then
     export GRAFANA_PASSWORD
 fi
 if ! .venv/bin/robot --console quiet --consolemarkers off --outputdir reports/robot "${robot_args[@]}" robot/test.robot; then
-    printf 'Grafana/CSV gagal. Periksa reports/robot/log.html; SQL dan matching tidak dilanjutkan.\n' >&2
+    printf 'Grafana/CSV processing failed. Check reports/robot/log.html; SQL and matching were not started.\n' >&2
     exit 1
 fi
-printf 'Grafana dan pemrosesan CSV: PASS\nLaporan: reports/robot/report.html\n'
+printf 'Grafana and CSV processing: PASS\nReport: reports/robot/report.html\n'

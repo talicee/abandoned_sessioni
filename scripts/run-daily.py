@@ -49,7 +49,7 @@ def run_day(day):
     if status_file.exists():
         saved = json.loads(status_file.read_text())
         if saved.get("status") in ("success", "verified_empty") and saved.get("matching_rule_hash") == rule_hash:
-            print(f"{day}: memakai hasil tersimpan ({saved['status']}).", flush=True)
+            print(f"{day}: using cached results ({saved['status']}).", flush=True)
             return saved
     folder.mkdir(parents=True, exist_ok=True)
     start, end = f"{day} 00:00:00", f"{day} 23:59:59"
@@ -99,7 +99,7 @@ def main():
     parser.add_argument("--end-date", type=date.fromisoformat, default=datetime.now(ZoneInfo("Asia/Jakarta")).date())
     args = parser.parse_args()
     if args.start_date > args.end_date:
-        parser.error("start-date harus sebelum atau sama dengan end-date")
+        parser.error("start-date must be earlier than or equal to end-date")
     records = []
     day = args.start_date
     report = DAILY / f"summary_{args.start_date}_{args.end_date}"
@@ -111,17 +111,17 @@ def main():
     ids = summarize(records, report)
     failed = [record["date"] for record in records if record["status"] not in ("success", "verified_empty")]
     verified_empty = sum(record["status"] == "verified_empty" for record in records)
-    print(f"\nSelesai: {len(records) - len(failed)}/{len(records)} tanggal diperiksa.")
-    print(f"Workflow sukses: {len(records) - len(failed) - verified_empty}; kosong terverifikasi: {verified_empty}.")
-    print(f"Session ID akhir tanpa duplikat ({len(ids)}):")
+    print(f"\nCompleted: {len(records) - len(failed)}/{len(records)} dates checked.")
+    print(f"Successful workflows: {len(records) - len(failed) - verified_empty}; verified empty days: {verified_empty}.")
+    print(f"Unique final session IDs ({len(ids)}):")
     for session_id in ids:
         print(f"  {session_id}")
     if not ids:
-        print("  (tidak ada pada hari yang berhasil)")
+        print("  (none from successful days)")
     if failed:
-        print("Hari belum berhasil: " + ", ".join(failed))
-    print(f"Ringkasan per hari: {report / 'summary.csv'}")
-    print(f"Daftar ID unik: {report / 'session_ids.csv'}")
+        print("Unsuccessful days: " + ", ".join(failed))
+    print(f"Daily summary: {report / 'summary.csv'}")
+    print(f"Unique ID list: {report / 'session_ids.csv'}")
     return 1 if failed else 0
 
 

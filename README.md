@@ -1,82 +1,68 @@
 # Grafana and SQL Server Session Analysis
 
+Find SQL/Yeastar sessions that are absent from Grafana, then identify customer
+messages that have not received an API or agent reply and have never been
+picked up by an agent. All time ranges use **WIB (Asia/Jakarta, UTC+07:00)**.
+
 ## Setup
 
-Create a Python environment and install the dependencies:
+Run these commands from the project root:
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-Chrome is required for Selenium. ChromeDriver is downloaded automatically.
-Set `GRAFANA_PASSWORD`, or save the Grafana password in the local file
-`robot/.grafana-password`. That file is ignored by Git.
+Chrome is required. Selenium downloads ChromeDriver automatically when needed.
+Set `GRAFANA_PASSWORD`, or save the password in `robot/.grafana-password`.
+That local file is ignored by Git.
 
-For SQL Server, install the ODBC driver named by `DB_DRIVER`, copy
+For SQL Server, install the ODBC driver specified by `DB_DRIVER`, copy
 `.env.example` to `.env`, and fill in the database connection settings.
-Keep real credentials local; `.env` is ignored by Git.
+Keep credentials local; `.env` is ignored by Git.
 
-## Run
+Both SQL scripts use the same connection setup and a 15-second connection
+timeout. This Mac uses a verified Microsoft driver under `.odbc-driver/`;
+its local ODBC configuration is selected automatically when present.
+That directory is ignored by Git. Other machines need their own driver
+installation matching `DB_DRIVER`.
 
-Run after 16:00 WIB to collect a complete daily period:
-
-```sh
-bash scripts/run-workflow.sh
-```
-
-The runner stops if any step fails. By default, Selenium selects yesterday
-16:00 through today 16:00 in Grafana, waits for the CSV download, and runs
-`scripts/join.py` on that specific download. `data/processed/merged.csv` is replaced
-on each run; older downloads are not combined. Running before 16:00 still
-selects today's 16:00 cutoff, so today's data will be incomplete.
-
-Selenium checks the applied Grafana URL against the requested timestamps,
-then saves the exact selected start/end values to
-`data/processed/time_range.json`. The SQL query reads that file and uses
-the same start/end bounds, both inclusive. It does not calculate its own
-dates, even when SQL runs on a different day. This assumes `MsgTime_c`
-stores local WIB timestamps. `scripts/match_sessions.py` compares the downloaded session
-IDs with the SQL results. It selects SQL/Yeastar sessions absent from
-Grafana (SQL IDs minus Grafana IDs), then queries details for those sessions.
-The full runner automatically runs `scripts/sql_server.py`, followed by
-`scripts/match_sessions.py`. To run only the browser, use
-`bash robot/run-test.sh`. SQL and matching can also be run separately:
-
-```sh
-.venv/bin/python scripts/sql_server.py
-.venv/bin/python scripts/match_sessions.py
-```
-
-The browser must finish successfully first to create both `merged.csv`
-and `time_range.json`. For a run without a visible browser window, use
-`bash scripts/run-workflow.sh --variable BROWSER:headlesschrome`.
-
-Both SQL scripts share one connection setup and a 15-second connection
-timeout. On this Mac, the verified Microsoft driver is installed locally
-under `.odbc-driver/`; the connection setup automatically uses its ODBC
-configuration when present. This folder is ignored by Git. Other machines
-need their own SQL Server ODBC driver installation matching `DB_DRIVER`.
-
-## Contoh penggunaan tanggal dan jam
-
-Jalankan dari folder utama proyek. Semua tanggal dan jam menggunakan **WIB
-(Asia/Jakarta)**. Ini adalah perintah manual; script tidak menjadwalkan
-proses harian dengan sendirinya.
-
-### 1. Default harian (tanpa parameter)
+## Run the complete workflow
 
 ```sh
 bash scripts/run-workflow.sh
 ```
 
-Rentang otomatis: **kemarin 16:00:00 sampai hari ini 16:00:00**.
-Contoh: dijalankan tanggal 21 Oktober 2026 pukul 17.00, data yang diminta
-adalah 20 Oktober 2026 pukul 16.00 sampai 21 Oktober 2026 pukul 16.00.
-Jika dijalankan sebelum pukul 16.00, batas akhirnya tetap hari ini pukul
-16.00; data hari ini belum lengkap.
+The default range is **yesterday at 16:00:00 through today at 16:00:00 WIB**.
+Run after 16:00 to collect a complete daily period. Running earlier still
+uses today's 16:00 cutoff, so today's data will be incomplete.
 
-### 2. Tanggal dan jam khusus
+The workflow runs these steps in order and stops if any step fails:
+
+1. Download the Grafana CSV, wait for completion, and process that specific file.
+2. Query SQL Server using the exact time range selected in Grafana.
+3. Find SQL/Yeastar sessions missing from Grafana and check their full histories.
+
+`data/processed/merged.csv` is replaced on each run. Older downloads are not
+combined. Selenium verifies the selected timestamps in the Grafana URL and
+saves them to `data/processed/time_range.json`. SQL reads that file and uses
+the same inclusive start/end bounds rather than calculating new dates.
+This assumes `MsgTime_c` contains local WIB timestamps.
+
+These are manual commands; the scripts do not schedule themselves.
+
+## Date and time examples
+
+### 1. Default daily range
+
+```sh
+bash scripts/run-workflow.sh
+```
+
+For example, running on October 22, 2026 at 17:00 requests October 21 at
+16:00:00 through October 22 at 16:00:00 WIB.
+
+### 2. Custom dates and times
 
 ```sh
 bash scripts/run-workflow.sh \
@@ -84,19 +70,20 @@ bash scripts/run-workflow.sh \
   --to "2026-10-20 17:45:30"
 ```
 
-Mengambil data mulai **18 Oktober 2026 pukul 08.30.00** sampai
-**20 Oktober 2026 pukul 17.45.30 WIB**. Rentang boleh berbeda dari 24 jam.
-SQL Server menggunakan tanggal dan jam yang sama persis dari Grafana.
+This requests October 18 at 08:30:00 through October 20 at 17:45:30 WIB.
+The interval does not need to be 24 hours. SQL uses the same timestamps.
 
-- Isi **kedua** parameter `--from` dan `--to`.
-- Gunakan format **`YYYY-MM-DD HH:MM:SS`**, termasuk detik.
-- Gunakan tanda kutip karena nilai berisi spasi.
-- `--from` harus lebih awal daripada `--to`.
-- Parameter hanya berlaku untuk perintah itu. Tanpa parameter pada
-  pemanggilan berikutnya, rentang kembali ke default harian.
-- Rentang tidak valid menghentikan proses sebelum browser atau query SQL dijalankan.
+- Supply **both** `--from` and `--to`.
+- Use **`YYYY-MM-DD HH:MM:SS`**, including seconds.
+- Quote each timestamp because it contains a space.
+- `--from` must be earlier than `--to`.
+- Custom parameters apply only to that invocation. The next invocation
+  without parameters returns to the default daily range.
+- Invalid ranges stop before the browser or SQL query starts.
+- For multiline shell commands, `\` must be the final character on its line;
+  do not leave a space after it.
 
-### 3. Tanpa jendela Chrome
+### 3. Headless Chrome
 
 ```sh
 bash scripts/run-workflow.sh \
@@ -105,7 +92,17 @@ bash scripts/run-workflow.sh \
   --variable BROWSER:headlesschrome
 ```
 
-### 4. Hanya download dan proses CSV (tanpa SQL/matching)
+If Selenium Manager is waiting for an online driver lookup and a compatible
+ChromeDriver is already cached, use:
+
+```sh
+SE_OFFLINE=true bash scripts/run-workflow.sh --variable BROWSER:headlesschrome
+```
+
+This disables driver downloads and metadata requests, not Grafana or SQL
+network access. A cached compatible driver is required for this option.
+
+### 4. Download and process CSV only
 
 ```sh
 bash robot/run-test.sh \
@@ -113,122 +110,122 @@ bash robot/run-test.sh \
   --to "2026-10-20 12:00:00"
 ```
 
-Perintah workflow lengkap menjalankan download → pemrosesan CSV terbaru →
-SQL Server → pencocokan session. File `data/processed/merged.csv` dan
-`data/processed/time_range.json` diganti sesuai rentang terbaru, bukan
-ditambahkan ke hasil hari sebelumnya. SQL yang dijalankan terpisah akan
-membaca rentang tersimpan itu, bukan parameter atau tanggal hari berjalan.
+This does not run SQL or matching. After a successful download, those steps
+can also be run separately:
 
-## Tujuan pencocokan session
-
-Acuan alur adalah `notebooks/cek.ipynb`: cari **session yang ada di SQL/Yeastar,
-tetapi tidak ada di Grafana**.
-
-```text
-missing = session SQL/Yeastar - session Grafana
+```sh
+.venv/bin/python scripts/sql_server.py
+.venv/bin/python scripts/match_sessions.py
 ```
 
-`unmatched_sessions.csv` menyimpan satu baris per session dengan kolom
-`session_id`, `first_msg_time`, dan `last_msg_time` dari SQL. Session ID
-normalisasi sebagai string agar nol di depan tidak hilang. Daftar ID
-missing tetap disimpan di CSV. Terminal hanya menampilkan daftar session ID
-yang lolos filter detail UD39, yaitu hasil akhir yang perlu ditindaklanjuti.
+Separate SQL runs use the saved `time_range.json`, even on another date.
+The browser stage must complete successfully first to create both that
+file and `merged.csv`.
 
-Query detail UD39 memeriksa seluruh riwayat setiap kandidat untuk mencari
-**pesan customer terakhir yang belum mendapat balasan API atau agent**:
+## Session matching rules
 
-- Pesan masuk harus `external -> api` dengan `MsgType_c = 'in'`.
-- Ambil pesan masuk terakhir berdasarkan `MsgTime_c`, lalu `MsgID_c` jika waktunya sama.
-- Keluarkan session jika ada pesan `out` dari `api -> external` **atau**
-  `extension -> external` setelah pesan masuk terakhir.
-- Keluarkan session jika **pernah di-pickup agent** pada titik mana pun
-  dalam riwayatnya: `FromType_c = extension`, `MsgType_c = system`,
-  `MsgTypeCode_c = 5`. Pickup sebelum pesan customer terakhir juga mengecualikan session.
-- Transfer API ke antrean (kode `6`) saja tidak mengecualikan session.
-- Pesan `system` penutupan otomatis diabaikan. Session tidak harus sudah ditutup.
-- Tidak ada batas jumlah pesan; spam tanpa balasan tetap terdeteksi.
-- Balasan lama tidak menutupi pesan customer baru yang belum terbalas.
-
-`unmatched_session_details.csv` menyimpan satu baris pesan customer terakhir
-yang belum terbalas per session. `TotalRows` hanya informasi jumlah riwayat,
-bukan filter. Query riwayat tidak dibatasi tanggal unduhan, sehingga balasan
-di luar rentang juga diperiksa. Pemeriksaan ini tetap diawali oleh kandidat
-SQL dikurangi Grafana; session di luar kandidat itu tidak diperiksa.
-
-Contoh yang diverifikasi langsung di SQL Server:
-
-| Session | Riwayat | Hasil |
-|---|---|---|
-| `204554` | Ada pesan masuk dan balasan `out` API | Dikeluarkan |
-| `205111` | API meneruskan ke agent, lalu agent membalas `out` | Dikeluarkan |
-| `201420` | Agent pickup dengan kode `5`, walaupun tidak ada `out` | Dikeluarkan |
-| `196772` | Pesan masuk, tanpa `out`, lalu ditutup sistem | Nyangkut |
-| `196777` | Dua pesan gambar masuk, tanpa `out`, lalu ditutup sistem | Nyangkut |
-
-Notebook masih menyimpan hasil eksekusi historis. Jalankan ulang selnya
-untuk membandingkan input saat ini. Lihat [hasil penelusuran alur](docs/alur-session.md).
-
-### Tampilan terminal
-
-Output dibagi menjadi tiga tahap dengan nama berbeda:
+The initial comparison follows `notebooks/cek.ipynb`:
 
 ```text
-[1/3] Download Grafana dan proses CSV terbaru
-Rentang WIB: ... -> ...
-Membuka Grafana dan login...
-Menerapkan filter log Yeastar...
-Mengunduh CSV dan menunggu unduhan selesai...
-Grafana dan pemrosesan CSV: PASS
+candidates = SQL/Yeastar session IDs - Grafana session IDs
+```
 
-[2/3] Ambil session SQL Server untuk rentang Grafana
+`unmatched_sessions.csv` contains one row per candidate, with `session_id`,
+`first_msg_time`, and `last_msg_time` from SQL. IDs are trimmed and treated
+as strings to preserve leading zeros.
+
+The detail query checks each candidate's full history:
+
+- Find the latest `external -> api` message with `MsgType_c = 'in'`.
+- Order messages by `MsgTime_c`, then `MsgID_c` when timestamps are equal.
+- Exclude the session if a later `out` message goes to `external` from
+  either `api` or `extension`.
+- Exclude the session if it **has ever been picked up by an agent**:
+  `FromType_c = extension`, `MsgType_c = system`, `MsgTypeCode_c = 5`.
+  A pickup before the latest customer message also excludes the session.
+- An API transfer to a queue (code `6`) alone does not exclude a session.
+- Ignore system closure messages. A session does not need to be closed.
+- Do not limit the number of messages; repeated customer messages without
+  a reply are still eligible.
+- An old reply does not cover a newer unanswered customer message.
+
+`unmatched_session_details.csv` contains the latest unanswered customer
+message for each final session. `TotalRows` is informational, not a filter.
+The history check is intentionally not limited to the download interval so
+replies on other dates are recognized. Detail timestamps may therefore fall
+outside the candidate search range. Sessions outside the initial candidate
+set are not checked.
+
+Examples verified directly against SQL Server:
+
+| Session | History | Result |
+|---|---|---|
+| `204554` | Incoming message followed by an API `out` reply | Excluded |
+| `205111` | API handoff followed by an agent `out` reply | Excluded |
+| `201420` | Agent pickup, code `5`, without an `out` reply | Excluded |
+| `196772` | Incoming message without an `out` reply, later closed by the system | Abandoned candidate |
+| `196777` | Two incoming images without an `out` reply, later closed by the system | Abandoned candidate |
+
+The notebook contains historical execution output. Rerun its cells to
+compare current inputs. See the [workflow investigation](docs/alur-session.md).
+
+## Terminal output
+
+```text
+[1/3] Download Grafana data and process the latest CSV
+Time range (WIB): ... -> ...
+Opening Grafana and signing in...
+Applying the Yeastar log filter...
+Downloading the CSV and waiting for completion...
+Grafana rows: 114; 93 unique sessions
+CSV timestamps: ... -> ...
+Source CSV: ...
+Temporary summary: ...
+Grafana and CSV processing: PASS
+
+[2/3] Fetch SQL Server sessions for the Grafana time range
+SQL time parameters (WIB): ... -> ... (inclusive, from Grafana)
+SQL unique sessions: 138 (one row per session, not all messages)
 ...
 
-[3/3] Cocokkan session dan ambil detail UD39
+[3/3] Match sessions and fetch UD39 details
 ...
-Session ID hasil akhir (jumlah):
+Final session IDs (2):
   <session_id_1>
   <session_id_2>
 ```
 
-Daftar ID di terminal berasal dari `Key1` pada hasil detail UD39 setelah
-pemeriksaan balasan API atau extension terhadap pesan customer terakhir diterapkan. Seluruh session missing sebelum
-filter tetap tersedia di `data/results/unmatched_sessions.csv`.
-Banner Robot Framework dan titik progres berulang disembunyikan; error
-serta warning tetap ditampilkan. Log lengkap tersedia di
-`reports/robot/log.html`. Untuk output Robot lengkap saat debugging,
-tambahkan `--console verbose --consolemarkers off` pada perintah runner.
+Only final session IDs that pass the reply and pickup checks are listed.
+All initial candidates remain in `data/results/unmatched_sessions.csv`.
+Repeated Robot Framework banners and progress markers are hidden; errors
+and warnings remain enabled. Full logs are in `reports/robot/log.html`.
+For verbose debugging, append `--console verbose --consolemarkers off`.
 
-### Jumlah baris dan ringkasan sementara
+## Counts and temporary summaries
 
-Terminal menampilkan jumlah **baris CSV Grafana**, jumlah **session unik**,
-dan timestamp paling awal/akhir pada CSV. CSV asli tetap tersimpan di
-`data/downloads/`; nama file tepatnya tercantum pada ringkasan.
+The terminal reports Grafana CSV row counts, unique session counts, and the
+oldest/newest CSV timestamps. Original CSV downloads remain in
+`data/downloads/`; the summary records the exact source filename.
 
-- `data/processed/grafana_summary.json`: sumber CSV, rentang diminta,
-  jumlah baris, jumlah session unik, dan timestamp aktual Grafana.
-- `data/sql/sql_summary.json`: parameter tanggal/jam SQL, jumlah session,
-  serta timestamp paling awal/akhir hasil query SQL.
+- `data/processed/grafana_summary.json`: source CSV, requested time range,
+  row/session counts, and observed Grafana timestamps.
+- `data/sql/sql_summary.json`: SQL time parameters, session count, and
+  observed SQL timestamps.
 
-Ringkasan diganti setiap kali tahap tersebut dijalankan dan diabaikan Git.
-SQL mengelompokkan pesan per session, sehingga jumlah baris hasil SQL
-adalah jumlah session unik, bukan jumlah seluruh pesan. Semua timestamp
-hasil query awal SQL diverifikasi berada dalam rentang Grafana.
+Each stage replaces its summary on each run. These files are ignored by Git.
+SQL groups messages by session, so its row count represents unique sessions,
+not individual messages. Initial SQL result timestamps are checked against
+the Grafana time range.
 
-CSV Grafana kosong/tanpa session ID menghentikan workflow sebelum tahap SQL.
-Ringkasan Grafana tetap disimpan dengan jumlah 0 agar bisa diperiksa.
-Matching yang dijalankan manual juga menolak CSV Grafana tanpa session ID;
-hasil kosong tidak boleh membuat seluruh session SQL dianggap missing.
-Jika workflow berhenti, output SQL/detail dari proses sebelumnya bisa masih
-ada: gunakan ringkasan dan status keberhasilan tahap saat memeriksa hasil.
+An empty Grafana CSV, or one without session IDs, stops the workflow before
+SQL. The zero-count Grafana summary is still saved for inspection. Manual
+matching also rejects empty Grafana input to avoid incorrectly marking every
+SQL session as missing. When a workflow stops, earlier SQL/detail output may
+still exist; check the summaries and execution status before using results.
 
-Filter tanggal berlaku pada pengambilan **daftar kandidat SQL**. Pengecekan
-balasan berikutnya sengaja membaca seluruh riwayat kandidat agar balasan
-API/agent di tanggal lain tetap dikenali. Karena itu timestamp pesan pada
-CSV detail bisa berada di luar rentang pengambilan kandidat.
+## Run multiple dates, one day at a time
 
-## Menjalankan beberapa hari, satu hari per proses
-
-Untuk 23 September sampai 21 Oktober 2026:
+For September 23 through October 21, 2026:
 
 ```sh
 .venv/bin/python -u scripts/run-daily.py \
@@ -236,12 +233,10 @@ Untuk 23 September sampai 21 Oktober 2026:
   --end-date 2026-10-21
 ```
 
-Runner memanggil workflow lengkap secara **berurutan**, selalu headless,
-untuk satu tanggal pukul **00:00:00 sampai 23:59:59 WIB** sebelum pindah
-ke tanggal berikutnya. Browser headless ditutup otomatis setelah tes,
-termasuk saat gagal, agar sesi Chrome tidak menumpuk.
-Setiap hari memiliki folder output sendiri, sehingga
-hasil hari sebelumnya tidak tertimpa:
+The runner executes the complete workflow **sequentially**, always headless,
+from **00:00:00 through 23:59:59 WIB** for one date before starting the next.
+Headless browsers close automatically after each test, including failures.
+Each date has a separate output folder:
 
 ```text
 data/daily/2026-09-23/
@@ -257,80 +252,81 @@ data/daily/2026-09-23/
   unmatched_session_details.csv
 ```
 
-Ringkasan keseluruhan berada di:
+Fresh Robot Framework reports are also copied into that date's folder.
+The overall summaries are saved to:
 
 ```text
 data/daily/summary_2026-09-23_2026-10-21/summary.csv
 data/daily/summary_2026-09-23_2026-10-21/session_ids.csv
 ```
 
-`summary.csv` mencatat status dan jumlah baris/session tiap hari serta ID
-akhirnya. `session_ids.csv` berisi ID akhir tanpa duplikat dan tanggal
-kemunculannya. Ringkasan diperbarui setelah setiap hari selesai, sehingga
-bisa dibaca saat runner masih berlangsung.
+`summary.csv` records each date's status, counts, and final IDs.
+`session_ids.csv` lists final IDs without duplicates and the dates they
+appeared. Summaries are updated after every date while the runner continues.
 
-Hari gagal (termasuk CSV Grafana kosong) ditandai `failed` dan tidak masuk
-rekap ID berhasil. Runner tetap mencoba hari berikutnya dan memberi exit
-code gagal jika ada hari yang belum berhasil. Log tiap hari tersedia untuk
-penelusuran. Laporan Robot yang baru dibuat ikut disalin ke folder tanggal itu. Jalankan perintah yang sama untuk melanjutkan: hari berstatus
-`success` dilewati jika aturan matching sama, sementara hari gagal dicoba kembali.
-Hash aturan matching disimpan di `status.json`; perubahan aturan membuat
-cache lama tidak dipakai dan hari tersebut diproses ulang. Rekap yang sudah
-tersimpan tetap merupakan snapshot lama sampai runner dijalankan ulang. Hasil sukses
-merupakan snapshot saat dijalankan; untuk memperbarui satu hari yang sudah
-sukses, hapus folder tanggal itu sebelum menjalankan ulang.
+Failed dates, including empty Grafana downloads, are marked `failed` and
+excluded from the successful ID summary. The runner continues to the next
+date and exits unsuccessfully if any dates remain unresolved. Run the same
+command again to resume: successful dates are reused only when their saved
+matching-rule hash matches the current rules; failed dates are retried.
+Rule changes invalidate old cached results. Existing summaries remain
+historical snapshots until the runner is executed again.
 
-Status `verified_empty` hanya digunakan setelah verifikasi independen SQL
-untuk hari dengan Grafana kosong, bukan diterapkan otomatis pada semua CSV
-kosong. Pada 18 Oktober 2026, seluruh 55 session SQL diperiksa dan tidak
-ada pesan customer ke API yang belum dibalas; bukti ada di
-`data/daily/2026-10-18/empty_verification.json`. Status ini juga dapat
-dipakai kembali saat melanjutkan run.
+To refresh a successful date, remove that date's output folder before
+rerunning. The `verified_empty` status is reserved for independently checked
+empty dates; it is not automatically assigned to empty downloads. For
+October 18, 2026, all 55 SQL sessions were checked independently and none
+had an unanswered customer-to-API message. Evidence is in
+`data/daily/2026-10-18/empty_verification.json`. This status can also be
+reused when its matching-rule hash is current.
 
-Tanpa parameter, tanggal awal adalah 23 September 2026 dan tanggal akhir
-adalah hari ini di WIB. Data tanggal hari ini hanya berisi pesan yang
-sudah tersedia saat proses dijalankan, meskipun batas akhirnya 23:59:59.
-Per hari tidak otomatis menjamin bebas batas baris Loki; periksa jumlah
-baris dan cakupan timestamp pada ringkasan tiap hari.
+Without parameters, the start date is September 23, 2026 and the end date
+is today in WIB. Today's data includes only messages available at execution
+time, even though its requested end is 23:59:59. Daily requests do not
+automatically guarantee that Loki row limits are avoided; inspect row
+counts and timestamp coverage in each date's summary.
 
 ## Output files
 
-- `data/downloads/*.csv`: downloaded source CSV files.
-- `data/processed/merged.csv`: processed latest download, with `session_id`.
-- `data/processed/grafana_summary.json`: temporary row/session counts and source CSV metadata.
-- `data/sql/sql_summary.json`: SQL time parameters, session count, and observed timestamps.
+- `data/downloads/*.csv`: original source downloads.
+- `data/processed/merged.csv`: processed latest download with `session_id`.
+- `data/processed/grafana_summary.json`: temporary Grafana counts and source metadata.
 - `data/processed/time_range.json`: exact Grafana start/end and timezone used by SQL.
+- `data/sql/sql_query_results.csv`: SQL sessions and their first/last message times.
+- `data/sql/sql_summary.json`: SQL parameters, counts, and observed timestamps.
+- `data/results/unmatched_sessions.csv`: initial SQL/Yeastar candidates missing from Grafana.
+- `data/results/unmatched_session_details.csv`: final unanswered customer messages.
 - `reports/robot/report.html`: latest Selenium test report.
-- `data/sql/sql_query_results.csv`: SQL session IDs and first/last message times.
-- `data/results/unmatched_sessions.csv`: SQL/Yeastar session IDs missing from Grafana, with `first_msg_time` and `last_msg_time`.
-- `data/results/unmatched_session_details.csv`: latest unanswered customer message for each abandoned candidate session.
 
 ## Project layout
 
 ```text
-scripts/             CSV processing, SQL query, session matching
-robot/               Selenium test, runner, Selenium requirements
-notebooks/           Exploratory notebook (run its first setup cell first)
-tests/               Local workflow tests without a database connection
-data/downloads/      Source CSV downloads
-data/processed/      Latest processed merged.csv
-data/sql/            Current SQL query results
-data/results/        Current unmatched IDs and SQL details
-data/reference/      Two historical CSV inputs used by the notebook
+scripts/             CSV processing, SQL queries, matching, and runners
+robot/               Selenium test, runner, and Selenium requirements
+notebooks/           Exploratory notebook; run its setup cell first
+tests/               Local tests without a live database connection
+data/downloads/      Original CSV downloads
+data/processed/      Latest processed CSV and Grafana summaries
+data/sql/            Current SQL results and summary
+data/results/        Current matching candidates and final details
+data/daily/          Archived daily runs and combined ID summaries
+data/reference/      Historical CSV inputs used by the notebook
 reports/robot/       Current Robot Framework logs and screenshots
 ```
 
-Current outputs are ignored by Git. Unused historical outputs and duplicate
-CSV files have been removed; notebook reference inputs are kept in data/reference/. The exploratory notebook includes historical comparisons;
-it does not run as part of the daily workflow.
+Current outputs are ignored by Git. Unused historical output and duplicate
+CSV files have been removed. Reference files remain in `data/reference/`.
+The notebook performs historical comparisons and is not part of the daily
+workflow. Customer message contents and original source data are preserved
+in their original language.
 
-## Check the code locally
+## Local checks
 
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-These tests exercise file selection, output replacement, SQL query time
-bounds, and ID matching with a fake database. They do not establish a live
-SQL connection. A working SQL Server ODBC driver and `.env` are required
-for the real SQL steps.
+Tests cover file selection, output replacement, date ranges, row summaries,
+SQL time parameters, matching direction, reply/pickup rules, daily archives,
+and cache handling. They use local fixtures and a fake database connection;
+a working ODBC driver and `.env` are needed for live SQL runs.

@@ -1,4 +1,4 @@
-﻿*** Settings ***
+*** Settings ***
 Library    SeleniumLibrary
 Library    OperatingSystem
 Library    Process
@@ -20,7 +20,7 @@ Download Grafana CSV and Process Latest File
     ${start}    ${cutoff}=    Resolve Time Range    ${FROM_TIME}    ${TO_TIME}
     ${FROM_TIME}=    Evaluate    $start.strftime('%Y-%m-%d %H:%M:%S')
     ${TO_TIME}=    Evaluate    $cutoff.strftime('%Y-%m-%d %H:%M:%S')
-    Log To Console    Rentang WIB: ${FROM_TIME} -> ${TO_TIME}
+    Log To Console    Time range (WIB): ${FROM_TIME} -> ${TO_TIME}
     ${chrome_options}=    Evaluate    __import__('selenium').webdriver.ChromeOptions()
     ${download_directory}=    Normalize Path    ${CURDIR}${/}..${/}data${/}downloads
     Create Directory    ${download_directory}
@@ -28,7 +28,7 @@ Download Grafana CSV and Process Latest File
     Call Method    ${chrome_options}    add_experimental_option    prefs    ${download_prefs}
     Call Method    ${chrome_options}    add_experimental_option    detach    ${True}
     Open Browser    ${URL}    ${BROWSER}    options=${chrome_options}
-    Log To Console    Membuka Grafana dan login...
+    Log To Console    Opening Grafana and signing in...
     Set Window Size    1440    1000
 
     # Log in if Grafana presents its sign-in page.
@@ -61,7 +61,7 @@ Download Grafana CSV and Process Latest File
     ${expected_to}=    Evaluate    str(int($cutoff.timestamp() * 1000))
     Wait Until Keyword Succeeds    10s    500ms    Grafana Range Should Match    ${expected_from}    ${expected_to}
     # Hover over the Console Log panel header to reveal its controls.
-    Log To Console    Menerapkan filter log Yeastar...
+    Log To Console    Applying the Yeastar log filter...
     Wait Until Element Is Visible    xpath=//*[@data-testid='data-testid header-container'][contains(normalize-space(.),'Console Log')]    timeout=${TIMEOUT}
     Mouse Over    xpath=//*[@data-testid='data-testid header-container'][contains(normalize-space(.),'Console Log')]
     # Open the panel menu, then click Inspect and Panel JSON.
@@ -93,7 +93,7 @@ Download Grafana CSV and Process Latest File
     Wait Until Keyword Succeeds    3x    1s    Open Inspect Submenu Item    xpath=//*[@role='menuitem' and normalize-space(.)='Data']
     Wait Until Element Is Visible    xpath=//button[normalize-space(.)='Download CSV']    timeout=${TIMEOUT}
     ${previous_csvs}=    List Files In Directory    ${download_directory}    *.csv
-    Log To Console    Mengunduh CSV dan menunggu unduhan selesai...
+    Log To Console    Downloading the CSV and waiting for completion...
     Click Element    xpath=//button[normalize-space(.)='Download CSV']
     ${downloaded_csv}=    Wait Until Keyword Succeeds    120s    1s    CSV Download Should Be Complete    ${download_directory}    ${previous_csvs}
     ${python}=    Evaluate    sys.executable    modules=sys
@@ -130,7 +130,7 @@ CSV Download Should Be Complete
     Should Be Empty    ${partial}
     ${current_csvs}=    List Files In Directory    ${directory}    *.csv
     ${new_csvs}=    Evaluate    set($current_csvs) - set($previous_csvs) - {'merged.csv'}
-    Should Not Be Empty    ${new_csvs}    CSV baru belum selesai diunduh.
+    Should Not Be Empty    ${new_csvs}    The new CSV download has not completed yet.
     Length Should Be    ${new_csvs}    1
     FOR    ${filename}    IN    @{new_csvs}
         ${size}=    Get File Size    ${directory}${/}${filename}

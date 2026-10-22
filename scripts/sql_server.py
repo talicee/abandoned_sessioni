@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 import os
 import json
 from datetime import datetime
@@ -90,7 +90,7 @@ def main():
         ORDER BY first_msg_time;
     """
 
-    print(f"SQL parameter WIB: {start} -> {cutoff} (inklusif, dari Grafana)")
+    print(f"SQL time parameters (WIB): {start} -> {cutoff} (inclusive, from Grafana)")
     with make_connection() as connection:
         cursor = connection.cursor()
         cursor.execute(query, "ChatMessage", start, cutoff)
@@ -103,7 +103,7 @@ def main():
     first_times = [datetime.fromisoformat(str(row[first_index])) for row in rows]
     last_times = [datetime.fromisoformat(str(row[last_index])) for row in rows]
     if any(not start <= first <= last <= cutoff for first, last in zip(first_times, last_times)):
-        raise ValueError("SQL mengembalikan timestamp di luar rentang Grafana; proses dihentikan.")
+        raise ValueError("SQL returned timestamps outside the Grafana time range; processing stopped.")
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     with OUTPUT_FILE.open("w", newline="", encoding="utf-8-sig") as csv_file:
         writer = csv.writer(csv_file)
@@ -120,10 +120,10 @@ def main():
     }
     summary_path = OUTPUT_FILE.with_name("sql_summary.json")
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    print(f"SQL: {len(rows)} session unik (satu baris per session, bukan seluruh pesan)")
-    print(f"Timestamp hasil SQL: {summary['earliest_time']} -> {summary['latest_time']}")
-    print(f"CSV SQL: {OUTPUT_FILE}")
-    print(f"Ringkasan SQL: {summary_path}")
+    print(f"SQL unique sessions: {len(rows)} (one row per session, not all messages)")
+    print(f"SQL result timestamps: {summary['earliest_time']} -> {summary['latest_time']}")
+    print(f"SQL CSV: {OUTPUT_FILE}")
+    print(f"SQL summary: {summary_path}")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 from pathlib import Path
 
 import pandas as pd
@@ -110,7 +110,7 @@ def query_unmatched_sessions(session_ids):
 def main():
     merged_ids = read_session_ids(MERGED_CSV)
     if merged_ids.empty:
-        raise ValueError("Grafana tidak memiliki session ID. Matching dihentikan agar seluruh SQL tidak dianggap missing.")
+        raise ValueError("Grafana has no session IDs. Matching stopped to avoid marking every SQL session as missing.")
     sql_frame = pd.read_csv(
         SQL_RESULTS_CSV,
         usecols=["session_id", "first_msg_time", "last_msg_time"],
@@ -137,7 +137,7 @@ def main():
     unmatched_session_ids = unmatched_frame["session_id"].dropna().str.strip().tolist()
     unmatched_session_ids = [session_id for session_id in unmatched_session_ids if session_id]
 
-    print("Cek balasan: seluruh riwayat kandidat; timestamp detail bisa di luar rentang pencarian.")
+    print("Checking replies across each candidate's full history; detail timestamps may fall outside the search range.")
     columns, rows = query_unmatched_sessions(unmatched_session_ids)
     with DETAILS_CSV.open("w", newline="", encoding="utf-8-sig") as csv_file:
         writer = csv.writer(csv_file)
@@ -152,11 +152,11 @@ def main():
     print(f"Saved SQL details to {DETAILS_CSV}")
     id_index = columns.index("Key1")
     final_session_ids = sorted({str(row[id_index]).strip() for row in rows})
-    print(f"Session ID hasil akhir ({len(final_session_ids)}):")
+    print(f"Final session IDs ({len(final_session_ids)}):")
     for session_id in final_session_ids:
         print(f"  {session_id}")
     if not final_session_ids:
-        print("  (tidak ada)")
+        print("  (none)")
 
 
 if __name__ == "__main__":
